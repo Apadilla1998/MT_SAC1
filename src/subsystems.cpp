@@ -6,19 +6,46 @@
 
 using namespace vex;
 
+// =====================================================
+// Globals (declared in subsystems.h)
+// =====================================================
 Alliance myAlliance = BLUE;
 Wings wings;
 
 volatile bool g_sorterEnabled = false;
 
-static volatile bool g_sorterOverrideActive = false;
+// =====================================================
+// Internal state (tracks *requested* commands)
+// =====================================================
+static volatile bool   g_sorterOverrideActive = false;
 
-static volatile int g_intakeDir = 0;
-static volatile double g_intakePct = 0.0;
+static volatile int    g_intakeDir = 0;      // -1 rev, 0 stop, +1 fwd
+static volatile double g_intakePct = 0.0;    // 0..100
 
-static volatile int g_outakeDir = 0;
-static volatile double g_outakePct = 0.0;
+static volatile int    g_outakeDir = 0;      // -1 rev, 0 stop, +1 fwd
+static volatile double g_outakePct = 0.0;    // 0..100
 
+// =====================================================
+// Tunables
+// =====================================================
+static constexpr int kLoopMs = 20;
+
+static constexpr int kHueBufN = 5;
+
+// hue thresholds (tweak if needed)
+static constexpr double kRedLowMax  = 20.0;
+static constexpr double kRedHighMin = 340.0;
+static constexpr double kBlueMin    = 200.0;
+static constexpr double kBlueMax    = 250.0;
+
+// sorter timings
+static constexpr int kAcceptMs   = 120;
+static constexpr int kRejectMs   = 220;
+static constexpr int kCooldownMs = 400;
+
+// =====================================================
+// Public API
+// =====================================================
 void setSorterEnabled(bool enabled) {
     g_sorterEnabled = enabled;
 }
@@ -33,6 +60,7 @@ void Wings::set(bool s) {
     wingsPiston.set(state);
 }
 
+// -------------------- Intake --------------------
 void runIntake(double speedPct) {
     g_intakeDir = 1;
     g_intakePct = std::fabs(speedPct);
@@ -63,135 +91,157 @@ void stopIntake() {
     ColorIntake.stop(coast);
 }
 
+// -------------------- Outtake --------------------
 void runOutake(double speedPct) {
     g_outakeDir = 1;
     g_outakePct = std::fabs(speedPct);
-
     Outtake.spin(fwd, speedPct, pct);
 }
 
 void reverseOutake(double speedPct) {
     g_outakeDir = -1;
     g_outakePct = std::fabs(speedPct);
-
     Outtake.spin(reverse, speedPct, pct);
 }
 
 void stopOutake() {
     g_outakeDir = 0;
     g_outakePct = 0.0;
-
     Outtake.stop(coast);
 }
 
-void moveArmRight(double speedPct) {
-    DescoreMotor.spin(fwd, speedPct, pct);
-}
+// -------------------- Descore arm --------------------
+void moveArmRight(double speedPct) { DescoreMotor.spin(fwd,     speedPct, pct); }
+void moveArmLeft (double speedPct) { DescoreMotor.spin(reverse, speedPct, pct); }
+void stopArm()                    { DescoreMotor.stop(hold); }
 
-void moveArmLeft(double speedPct) {
-    DescoreMotor.spin(reverse, speedPct, pct);
-}
-
-void stopArm() {
-    DescoreMotor.stop(hold);
-}
-
+// -------------------- Auto helpers --------------------
 void runIntakeAuto(double speedPct) {
     setSorterEnabled(true);
     runIntake(speedPct);
 }
-
 void reverseIntakeAuto(double speedPct) {
     setSorterEnabled(false);
     reverseIntake(speedPct);
 }
-
 void stopIntakeAuto() {
     stopIntake();
     setSorterEnabled(false);
 }
 
-static double filteredHue() {
-    static double buf[5] = {0, 0, 0, 0, 0};
+// =====================================================
+// Internal helpers
+// =====================================================
+enum class BallColor { RED, BLUE, UNKNOWN };
+
+static BallColor classifyHue(double hue) {
+    const bool isRed  = (hue < kRedLowMax || hue > kRedHighMin);
+    const bool isBlue = (hue > kBlueMin && hue < kBlueMax);
+    if (isRed)  return BallColor::RED;
+    if (isBlue) return BallColor::BLUE;
+    return BallColor::UNKNOWN;
+}
+
+static bool isOpponentBall(BallColor c) {
+    if (c == BallColor::UNKNOWN) return false;
+    return (myAlliance == RED  && c == BallColor::BLUE) ||
+           (myAlliance == BLUE && c == BallColor::RED);
+}
+
+static double filteredHueMedian() {
+    static double buf[kHueBufN] = {0,0,0,0,0};
     static int idx = 0;
     static int count = 0;
 
     buf[idx] = ballSensor.hue();
-    idx = (idx + 1) % 5;
-    if (count < 5) count++;
+    idx = (idx + 1) % kHueBufN;
+    if (count < kHueBufN) count++;
 
-    double tmp[5];
+    double tmp[kHueBufN];
     for (int i = 0; i < count; i++) tmp[i] = buf[i];
 
     std::sort(tmp, tmp + count);
     return tmp[count / 2];
 }
 
+static void restoreIntakeFromRequested() {
+    const int dir = g_intakeDir;
+    const double pctReq = g_intakePct;
+
+    if (dir == 0 || pctReq <= 0.0) {
+        MainIntake.stop(coast);
+        ColorIntake.stop(coast);
+    } else if (dir > 0) {
+        MainIntake.spin(fwd,  pctReq, pct);
+        ColorIntake.spin(fwd, pctReq, pct);
+    } else {
+        MainIntake.spin(reverse,  pctReq, pct);
+        ColorIntake.spin(reverse, pctReq, pct);
+    }
+}
+
+static void beginSorterOverride() {
+    g_sorterOverrideActive = true;
+    MainIntake.stop(coast);     // ONLY ColorIntake spins during sort
+}
+
+static void endSorterOverride() {
+    ColorIntake.stop(coast);
+    g_sorterOverrideActive = false;
+    restoreIntakeFromRequested();
+}
+
+// =====================================================
+// Sorter task (start with: task sorter(intakeTaskFn);)
+// =====================================================
 int intakeTaskFn() {
     ballSensor.setLightPower(100, percent);
-
-    const int ACCEPT_MS = 120;
-    const int REJECT_MS = 220;
-    const int COOLDOWN_MS_AFTER = 400;
 
     int cooldownMs = 0;
 
     while (true) {
         if (!g_sorterEnabled) {
-            cooldownMs = 0;
             if (g_sorterOverrideActive) {
-                ColorIntake.stop(coast);
-                MainIntake.stop(coast);
-                g_sorterOverrideActive = false;
+                endSorterOverride();
             }
-            wait(20, msec);
+            cooldownMs = 0;
+            wait(kLoopMs, msec);
             continue;
         }
 
         if (cooldownMs > 0) {
-            cooldownMs -= 20;
-            wait(20, msec);
+            cooldownMs -= kLoopMs;
+            wait(kLoopMs, msec);
             continue;
         }
 
         if (!ballSensor.isNearObject()) {
-            wait(20, msec);
+            wait(kLoopMs, msec);
             continue;
         }
 
-        double hue = filteredHue();
+        const double hue = filteredHueMedian();
+        const BallColor c = classifyHue(hue);
 
-        bool isRed  = (hue < 20 || hue > 340);
-        bool isBlue = (hue > 200 && hue < 250);
-
-        if (!isRed && !isBlue) {
-            wait(20, msec);
+        if (c == BallColor::UNKNOWN) {
+            wait(kLoopMs, msec);
             continue;
         }
 
-        bool isOpponent =
-            (myAlliance == RED  && isBlue) ||
-            (myAlliance == BLUE && isRed);
+        beginSorterOverride();
 
-        g_sorterOverrideActive = true;
-
-        MainIntake.stop(coast);
-
-        if (isOpponent) {
+        if (isOpponentBall(c)) {
             ColorIntake.spin(reverse, 100, pct);
-            wait(REJECT_MS, msec);
+            wait(kRejectMs, msec);
         } else {
             ColorIntake.spin(fwd, 100, pct);
-            wait(ACCEPT_MS, msec);
+            wait(kAcceptMs, msec);
         }
 
-        ColorIntake.stop(coast);
+        endSorterOverride();
+        cooldownMs = kCooldownMs;
 
-        g_sorterOverrideActive = false;
-
-        cooldownMs = COOLDOWN_MS_AFTER;
-
-        wait(20, msec);
+        wait(kLoopMs, msec);
     }
 
     return 0;
