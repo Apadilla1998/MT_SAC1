@@ -11,6 +11,8 @@ static task* odomTask = nullptr;
 static task* sorterTask = nullptr;
 
 void pre_auton() {
+    setSorterEnabled(false);
+
     initSensors();
     resetOdometry();
 
@@ -20,4 +22,4 @@ void pre_auton() {
     Brain.Screen.clearScreen();
     Brain.Screen.setCursor(1, 1);
     Brain.Screen.print("Sensors ready");
-} 
+}

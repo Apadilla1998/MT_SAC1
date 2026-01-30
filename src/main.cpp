@@ -3,13 +3,16 @@
 #include "pre_auton.h"
 #include "autons.h"
 #include "manual.h"
+#include "subsystems.h"
 
 using namespace vex;
 
 competition Competition;
 
 static void autonomous() {
+    setSorterEnabled(false);
     runAutonomous();
+    setSorterEnabled(false);
 }
 
 int main() {

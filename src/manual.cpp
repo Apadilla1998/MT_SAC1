@@ -38,6 +38,16 @@ static const double TURN_DECEL_PCT_PER_S = 1100.0;
 static double fwdCmd = 0.0;
 static double trnCmd = 0.0;
 
+static bool prevR1 = false, prevUp = false, prevX = false, prevY = false;
+
+static bool isFast = true;
+static bool showOdom = false;
+
+static int screenTimer = 0;
+static int ballTimer = 0;
+
+static bool driveStopped = true;
+
 static double computeCurve(double inputPct, double curve) {
     double v = inputPct / 100.0;
     return ((curve * std::pow(v, 3)) + ((1.0 - curve) * v)) * 100.0;
@@ -47,6 +57,180 @@ static inline double wrap360(double d) {
     while (d >= 360.0) d -= 360.0;
     while (d < 0.0)    d += 360.0;
     return d;
+}
+
+static void Descore() {
+    if (Controller1.ButtonLeft.pressing()) {
+        moveArmLeft(25);
+    } else if (Controller1.ButtonRight.pressing()) {
+        moveArmRight(25);
+    } else {
+        stopArm();
+    }
+}
+
+static void buttonPressing(bool& needsUpdate) {
+    bool r1 = Controller1.ButtonR1.pressing();
+    if (r1 && !prevR1) {
+        isFast = !isFast;
+        Controller1.rumble(".");
+        needsUpdate = true;
+    }
+    prevR1 = r1;
+
+    bool up = Controller1.ButtonUp.pressing();
+    if (up && !prevUp) {
+        wings.toggle();
+        needsUpdate = true;
+    }
+    prevUp = up;
+
+    bool x = Controller1.ButtonX.pressing();
+    if (x && !prevX) {
+        resetOdometry();
+        Controller1.rumble("-");
+        needsUpdate = true;
+    }
+    prevX = x;
+
+    bool y = Controller1.ButtonY.pressing();
+    if (y && !prevY) {
+        showOdom = !showOdom;
+        needsUpdate = true;
+    }
+    prevY = y;
+
+    bool outtakeActive = (Controller1.ButtonL2.pressing() || Controller1.ButtonR2.pressing());
+
+    bool intakeFwd = Controller1.ButtonL1.pressing();
+    bool intakeRev = Controller1.ButtonDown.pressing();
+
+    if (outtakeActive) {
+        setSorterEnabled(false);
+        stopIntake();
+        return;
+    }
+
+    if (intakeFwd) {
+        setSorterEnabled(true);
+        runIntake(100);
+    } else if (intakeRev) {
+        setSorterEnabled(false);
+        reverseIntake(100);
+    } else {
+        setSorterEnabled(false);
+        stopIntake();
+    }
+}
+
+static void ScreenTimer(bool& needsUpdate) {
+    screenTimer += 20;
+    const int screenPeriodMs = showOdom ? 200 : 4000;
+
+    if (needsUpdate || screenTimer >= screenPeriodMs) {
+        updateControllerScreen(isFast, showOdom);
+        screenTimer = 0;
+    }
+
+    ballTimer += 20;
+    if (!showOdom && ballTimer >= 2000) {
+        updateBallLine();
+        ballTimer = 0;
+    }
+}
+
+static void joyStickControl() {
+    auto slewAxis = [&](double target, double current, double accel, double decel) -> double {
+        double delta = target - current;
+        bool increasingMag = (std::fabs(target) > std::fabs(current));
+        double maxStep = (increasingMag ? accel : decel) * DT;
+        delta = clampD(delta, -maxStep, maxStep);
+        return current + delta;
+    };
+
+    double fwdIn = computeCurve(Controller1.Axis3.position(pct), FWD_CURVE);
+    double trnIn = computeCurve(Controller1.Axis1.position(pct), TURN_CURVE);
+
+    int deadband = 5;
+    if (std::fabs(fwdIn) < deadband) fwdIn = 0.0;
+    if (std::fabs(trnIn) < deadband) trnIn = 0.0;
+
+    const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
+
+    const double driveScale = isFast ? DRIVE_SCALE_FAST : DRIVE_SCALE_SLOW;
+    const double turnScale  = isFast ? TURN_SCALE_FAST  : TURN_SCALE_SLOW;
+
+    double fwdReq = fwdIn * driveScale;
+    double trnReq = trnIn * turnScale;
+    trnReq = clampD(trnReq, -TURN_MAX_PCT, TURN_MAX_PCT);
+
+    if (neutralInput) {
+        fwdReq = 0.0;
+        trnReq = 0.0;
+    }
+
+    fwdCmd = slewAxis(fwdReq, fwdCmd, ACCEL_PCT_PER_S, DECEL_PCT_PER_S);
+    trnCmd = slewAxis(trnReq, trnCmd, TURN_ACCEL_PCT_PER_S, TURN_DECEL_PCT_PER_S);
+
+    double lOut = clampPct((fwdCmd + trnCmd) * LEFT_BIAS);
+    double rOut = clampPct((fwdCmd - trnCmd) * RIGHT_BIAS);
+
+    if (neutralInput) {
+        if (std::fabs(fwdCmd) < 0.8 && std::fabs(trnCmd) < 0.8) {
+            if (!driveStopped) {
+                LeftMotorGroup.stop();
+                RightMotorGroup.stop();
+                driveStopped = true;
+            }
+        } else {
+            driveStopped = false;
+            LeftMotorGroup.spin(forward, lOut, pct);
+            RightMotorGroup.spin(forward, rOut, pct);
+        }
+    } else {
+        driveStopped = false;
+        LeftMotorGroup.spin(forward, lOut, pct);
+        RightMotorGroup.spin(forward, rOut, pct);
+    }
+}
+
+static double filteredHueManual() {
+    static double buf[5] = {0,0,0,0,0};
+    static int idx = 0;
+    static int count = 0;
+
+    buf[idx] = ballSensor.hue();
+    idx = (idx + 1) % 5;
+    if (count < 5) count++;
+
+    double tmp[5];
+    for (int i = 0; i < count; i++) tmp[i] = buf[i];
+
+    std::sort(tmp, tmp + count);
+    return tmp[count / 2];
+}
+
+static void updateBallLine() {
+    Controller1.Screen.clearLine(3);
+    Controller1.Screen.setCursor(3, 1);
+
+    if (!ballSensor.isNearObject()) {
+        Controller1.Screen.print("BALL: NONE");
+        return;
+    }
+
+    double hue = filteredHueManual();
+
+    bool isRed  = (hue < 20 || hue > 340);
+    bool isBlue = (hue > 200 && hue < 250);
+
+    const char* c = isRed ? "RED" : (isBlue ? "BLUE" : "UNK");
+
+    bool isOpponent =
+        (myAlliance == RED  && isBlue) ||
+        (myAlliance == BLUE && isRed);
+
+    Controller1.Screen.print("BALL:%s H:%5.1f %s", c, hue, isOpponent ? "OPP" : "ALLY");
 }
 
 static void updateControllerScreen(bool isFast, bool showOdom) {
@@ -60,6 +244,8 @@ static void updateControllerScreen(bool isFast, bool showOdom) {
 
         Controller1.Screen.setCursor(2, 1);
         Controller1.Screen.print("WINGS: %s", wings.isExtended() ? "UP" : "DOWN");
+
+        updateBallLine();
     } else {
         const double x_cm  = robotPose.x * 100.0;
         const double y_cm  = robotPose.y * 100.0;
@@ -75,119 +261,20 @@ static void updateControllerScreen(bool isFast, bool showOdom) {
 }
 
 void usercontrol() {
-    bool prevR1 = false, prevUp = false, prevX = false, prevY = false;
-
-    bool isFast = true;
-    bool showOdom = false;
-
-    int screenTimer = 0;
-    updateControllerScreen(isFast, showOdom);
-
-    auto slewAxis = [&](double target, double current, double accel, double decel) -> double {
-        double delta = target - current;
-        bool increasingMag = (std::fabs(target) > std::fabs(current));
-        double maxStep = (increasingMag ? accel : decel) * DT;
-        delta = clampD(delta, -maxStep, maxStep);
-        return current + delta;
-    };
+    ballSensor.setLightPower(100, percent);
 
     LeftMotorGroup.setStopping(coast);
     RightMotorGroup.setStopping(coast);
 
-    bool driveStopped = true;
+    updateControllerScreen(isFast, showOdom);
 
     while (true) {
-        double fwdIn = computeCurve(Controller1.Axis3.position(pct), FWD_CURVE);
-        double trnIn = computeCurve(Controller1.Axis1.position(pct), TURN_CURVE);
-
-        if (std::fabs(fwdIn) < 5.0) fwdIn = 0.0;
-        if (std::fabs(trnIn) < 5.0) trnIn = 0.0;
-
-        const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
-
-        const double driveScale = isFast ? DRIVE_SCALE_FAST : DRIVE_SCALE_SLOW;
-        const double turnScale  = isFast ? TURN_SCALE_FAST  : TURN_SCALE_SLOW;
-
-        double fwdReq = fwdIn * driveScale;
-        double trnReq = trnIn * turnScale;
-        trnReq = clampD(trnReq, -TURN_MAX_PCT, TURN_MAX_PCT);
-
-        if (neutralInput) {
-            fwdReq = 0.0;
-            trnReq = 0.0;
-        }
-
-        fwdCmd = slewAxis(fwdReq, fwdCmd, ACCEL_PCT_PER_S, DECEL_PCT_PER_S);
-        trnCmd = slewAxis(trnReq, trnCmd, TURN_ACCEL_PCT_PER_S, TURN_DECEL_PCT_PER_S);
-
-        double lOut = clampPct((fwdCmd + trnCmd) * LEFT_BIAS);
-        double rOut = clampPct((fwdCmd - trnCmd) * RIGHT_BIAS);
-
-        if (neutralInput) {
-            if (std::fabs(fwdCmd) < 0.8 && std::fabs(trnCmd) < 0.8) {
-                if (!driveStopped) {
-                    LeftMotorGroup.stop();
-                    RightMotorGroup.stop();
-                    driveStopped = true;
-                }
-            } else {
-                driveStopped = false;
-                LeftMotorGroup.spin(forward, lOut, pct);
-                RightMotorGroup.spin(forward, rOut, pct);
-            }
-        } else {
-            driveStopped = false;
-            LeftMotorGroup.spin(forward, lOut, pct);
-            RightMotorGroup.spin(forward, rOut, pct);
-        }
-
         bool needsUpdate = false;
 
-        bool r1 = Controller1.ButtonR1.pressing();
-        if (r1 && !prevR1) {
-            isFast = !isFast;
-            Controller1.rumble(".");
-            needsUpdate = true;
-        }
-        prevR1 = r1;
-
-        bool up = Controller1.ButtonUp.pressing();
-        if (up && !prevUp) {
-            wings.toggle();
-            needsUpdate = true;
-        }
-        prevUp = up;
-
-        bool x = Controller1.ButtonX.pressing();
-        if (x && !prevX) {
-            resetOdometry();
-            Controller1.rumble("-");
-            needsUpdate = true;
-        }
-        prevX = x;
-
-        bool y = Controller1.ButtonY.pressing();
-        if (y && !prevY) {
-            showOdom = !showOdom;
-            needsUpdate = true;
-        }
-        prevY = y;
-
-        if (Controller1.ButtonL1.pressing() || Controller1.ButtonL2.pressing()) {
-            runIntake(100);
-        } else if (Controller1.ButtonR2.pressing()) {
-            reverseIntake(100);
-        } else {
-            stopIntake();
-        }
-
-        if (Controller1.ButtonLeft.pressing()) {
-            moveArmLeft(25);
-        } else if (Controller1.ButtonRight.pressing()) {
-            moveArmRight(25);
-        } else {
-            stopArm();
-        }
+        joyStickControl();
+        Descore();
+        buttonPressing(needsUpdate);
+        ScreenTimer(needsUpdate);
 
         const int outtakeBase = wings.isExtended() ? OUTTAKE_WINGS_UP_PCT : OUTTAKE_NORMAL_PCT;
 
@@ -219,14 +306,6 @@ void usercontrol() {
             runOutake((int)std::fabs(outtakeCmd));
         } else {
             reverseOutake((int)std::fabs(outtakeCmd));
-        }
-
-        screenTimer += 20;
-        const int screenPeriodMs = showOdom ? 200 : 4000;
-
-        if (needsUpdate || screenTimer >= screenPeriodMs) {
-            updateControllerScreen(isFast, showOdom);
-            screenTimer = 0;
         }
 
         wait(20, msec);

@@ -4,41 +4,38 @@
 #include "vex.h"
 
 enum Alliance { RED, BLUE };
+
 extern Alliance myAlliance;
 
 class Wings {
 public:
-    Wings() : state(false) {}
     void toggle();
     void set(bool s);
     bool isExtended() const { return state; }
 private:
-    bool state;
-};
-
-class Subsystems {
-public:
-    Subsystems() : state(false) {}
-    void toggle();
-    void set(bool s);
-    bool isExtended() const { return state; }
-private:
-    bool state;
+    bool state = false;
 };
 
 extern Wings wings;
 
-void runIntake(double speedPct = 100.0);
-void reverseIntake(double speedPct = 100.0);
+extern volatile bool g_sorterEnabled;
+void setSorterEnabled(bool enabled);
+
+void runIntake(double speedPct);
+void reverseIntake(double speedPct);
 void stopIntake();
 
-void runOutake(double speedPct = 100.0);
-void reverseOutake(double speedPct = 100.0);
+void runOutake(double speedPct);
+void reverseOutake(double speedPct);
 void stopOutake();
 
-void moveArmRight(double speedPct = 100.0);
-void moveArmLeft(double speedPct = 100.0);
+void moveArmRight(double speedPct);
+void moveArmLeft(double speedPct);
 void stopArm();
+
+void runIntakeAuto(double speedPct);
+void reverseIntakeAuto(double speedPct);
+void stopIntakeAuto();
 
 int intakeTaskFn();
 
