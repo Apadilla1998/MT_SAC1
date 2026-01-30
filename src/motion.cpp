@@ -1,317 +1,553 @@
-// manual.cpp
-#include "manual.h"
+// motion.cpp
+#include "motion.h"
+#include "drive.h"
 #include "robot_config.h"
-#include "subsystems.h"
-#include "odom.h"
 #include "utils.h"
-#include <cmath>
+#include "odom.h"
+#include "vex.h"
 #include <algorithm>
+#include <cmath>
 
 using namespace vex;
 
-static const int OUTTAKE_NORMAL_PCT   = 40;
-static const int OUTTAKE_WINGS_UP_PCT = 100;
-
-static const double OUTTAKE_ACCEL_PCT_PER_S = 600.0;
-static const double OUTTAKE_DECEL_PCT_PER_S = 900.0;
-
-static double outtakeCmd = 0.0;
-
-static const double FWD_CURVE  = 0.2;
-static const double TURN_CURVE = 0.250;
-static const double LEFT_BIAS  = 0.95;
-static const double RIGHT_BIAS = 1.0;
-
-const double ACCEL_PCT_PER_S = 350.0;
-const double DECEL_PCT_PER_S = 290.0;
-const double DT = 0.02;
-
-static const double DRIVE_SCALE_FAST = 0.80;
-static const double DRIVE_SCALE_SLOW = 0.40;
-
-static const double TURN_SCALE_FAST  = 0.55;
-static const double TURN_SCALE_SLOW  = 0.35;
-static const double TURN_MAX_PCT     = 80.0;
-
-static const double TURN_ACCEL_PCT_PER_S = 900.0;
-static const double TURN_DECEL_PCT_PER_S = 1100.0;
-
-static double fwdCmd = 0.0;
-static double trnCmd = 0.0;
-
-static bool prevR1 = false, prevUp = false, prevX = false, prevY = false;
-
-static bool isFast = true;
-static bool showOdom = false;
-
-static int screenTimer = 0;
-static int ballTimer = 0;
-
-static bool driveStopped = true;
-
-static double computeCurve(double inputPct, double curve) {
-    double v = inputPct / 100.0;
-    return ((curve * std::pow(v, 3)) + ((1.0 - curve) * v)) * 100.0;
+static inline double rotDegToM(double deg) {
+    return (deg * config::TRACKING_WHEEL_CIRCUMFERENCE_M) / 360.0;
 }
 
-static inline double wrap360(double d) {
-    while (d >= 360.0) d -= 360.0;
-    while (d < 0.0)    d += 360.0;
-    return d;
+static inline double norm360(double a) {
+    a = std::fmod(a, 360.0);
+    if (a < 0.0) a += 360.0;
+    return a;
 }
 
-static void Descore() {
-    if (Controller1.ButtonLeft.pressing()) {
-        moveArmLeft(25);
-    } else if (Controller1.ButtonRight.pressing()) {
-        moveArmRight(25);
-    } else {
-        stopArm();
-    }
+double MotionController::wrap180(double a) {
+    while (a > 180.0) a -= 360.0;
+    while (a <= -180.0) a += 360.0;
+    return a;
 }
 
-static void updateBallLine();
-static void updateControllerScreen(bool isFast, bool showOdom);
-
-static void buttonPressing(bool& needsUpdate) {
-    bool r1 = Controller1.ButtonR1.pressing();
-    if (r1 && !prevR1) {
-        isFast = !isFast;
-        Controller1.rumble(".");
-        needsUpdate = true;
-    }
-    prevR1 = r1;
-
-    bool up = Controller1.ButtonUp.pressing();
-    if (up && !prevUp) {
-        wings.toggle();
-        needsUpdate = true;
-    }
-    prevUp = up;
-
-    bool x = Controller1.ButtonX.pressing();
-    if (x && !prevX) {
-        resetOdometry();
-        Controller1.rumble("-");
-        needsUpdate = true;
-    }
-    prevX = x;
-
-    bool y = Controller1.ButtonY.pressing();
-    if (y && !prevY) {
-        showOdom = !showOdom;
-        needsUpdate = true;
-    }
-    prevY = y;
-
-    bool outtakeActive = (Controller1.ButtonL2.pressing() || Controller1.ButtonR2.pressing());
-
-    bool intakeFwd = Controller1.ButtonL1.pressing();
-    bool intakeRev = Controller1.ButtonDown.pressing();
-
-    if (outtakeActive) {
-        setSorterEnabled(false);
-        stopIntake();
-        return;
-    }
-
-    if (intakeFwd) {
-        setSorterEnabled(true);
-        runIntake(100);
-    } else if (intakeRev) {
-        setSorterEnabled(false);
-        reverseIntake(100);
-    } else {
-        setSorterEnabled(false);
-        stopIntake();
-    }
+double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
+    return wrap180(targetDeg - currentDeg);
 }
 
-static void ScreenTimer(bool& needsUpdate) {
-    screenTimer += 20;
-    const int screenPeriodMs = showOdom ? 200 : 4000;
+MotionController::MotionController()
+    : distPID_(20, 0.00, 5.0),
+      headPID_(0.35, 0.002, 0.0015),
+      turnPID_(0.35, 0.002, 0.0015)
+{
+    distPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
+    distPID_.setDerivativeFilterTf(0.18);
+    distPID_.setAntiWindupTau(0.15);
+    distPID_.setErrorDeadband(0.010);
+    distPID_.setOutputLimits(-100, 100);
 
-    if (needsUpdate || screenTimer >= screenPeriodMs) {
-        updateControllerScreen(isFast, showOdom);
-        screenTimer = 0;
-    }
+    headPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
+    headPID_.setDerivativeFilterTf(0.10);
+    headPID_.setAntiWindupTau(0.20);
+    headPID_.setIntegralZone(0.0);
+    headPID_.setIntegralLimits(-2.0, 2.0);
+    headPID_.setErrorDeadband(0.3);
+    headPID_.setOutputLimits(-16, 16);
 
-    ballTimer += 20;
-    if (!showOdom && ballTimer >= 2000) {
-        updateBallLine();
-        ballTimer = 0;
-    }
+    turnPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
+    turnPID_.setDerivativeFilterTf(0.06);
+    turnPID_.setAntiWindupTau(0.18);
+    turnPID_.setIntegralZone(15.0);
+    turnPID_.setIntegralLimits(-50.0, 50.0);
+    turnPID_.setErrorDeadband(0.2);
+    turnPID_.setOutputLimits(-60, 60);
 }
 
-static void joyStickControl() {
-    auto slewAxis = [&](double target, double current, double accel, double decel) -> double {
-        double delta = target - current;
-        bool increasingMag = (std::fabs(target) > std::fabs(current));
-        double maxStep = (increasingMag ? accel : decel) * DT;
-        delta = clampD(delta, -maxStep, maxStep);
-        return current + delta;
-    };
+void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg) {
+    const double startM = rotDegToM(verticalRot.position(deg));
+    const double holdHead = norm360(holdHeadingDeg);
 
-    double fwdIn = computeCurve(Controller1.Axis3.position(pct), FWD_CURVE);
-    double trnIn = computeCurve(Controller1.Axis1.position(pct), TURN_CURVE);
+    distPID_.setSetpoint(distM);
+    distPID_.resetBumpless(0.0, 0.0);
 
-    int deadband = 5;
-    if (std::fabs(fwdIn) < deadband) fwdIn = 0.0;
-    if (std::fabs(trnIn) < deadband) trnIn = 0.0;
+    headPID_.setSetpoint(0.0);
+    headPID_.resetBumpless(0.0, 0.0);
 
-    const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
+    const int dtMs = 10;
+    const double dt = dtMs / 1000.0;
 
-    const double driveScale = isFast ? DRIVE_SCALE_FAST : DRIVE_SCALE_SLOW;
-    const double turnScale  = isFast ? TURN_SCALE_FAST  : TURN_SCALE_SLOW;
+    timer t; t.reset();
+    int settledMs = 0;
+    int stopHoldMs = 0;
 
-    double fwdReq = fwdIn * driveScale;
-    double trnReq = trnIn * turnScale;
-    trnReq = clampD(trnReq, -TURN_MAX_PCT, TURN_MAX_PCT);
+    const double minCap = 10.0;
+    const double stopBand = 0.010;
 
-    if (neutralInput) {
-        fwdReq = 0.0;
-        trnReq = 0.0;
-    }
+    const double stopEnter = 0.030;
+    const double stopExit  = 0.055;
+    const int stopSettleMs = 120;
 
-    fwdCmd = slewAxis(fwdReq, fwdCmd, ACCEL_PCT_PER_S, DECEL_PCT_PER_S);
-    trnCmd = slewAxis(trnReq, trnCmd, TURN_ACCEL_PCT_PER_S, TURN_DECEL_PCT_PER_S);
+    bool stopLatch = false;
+    double distErrPrev = distM;
+    bool crossed = false;
 
-    double lOut = clampPct((fwdCmd + trnCmd) * LEFT_BIAS);
-    double rOut = clampPct((fwdCmd - trnCmd) * RIGHT_BIAS);
+    double vCmd = 0.0;
+    const double dvPerSec = 350.0;
+    const double dvMax = dvPerSec * dt;
 
-    if (neutralInput) {
-        if (std::fabs(fwdCmd) < 0.8 && std::fabs(trnCmd) < 0.8) {
-            if (!driveStopped) {
-                LeftMotorGroup.stop();
-                RightMotorGroup.stop();
-                driveStopped = true;
+    double wCmd = 0.0;
+    const double dwPerSec = 260.0;
+    const double dwMax = dwPerSec * dt;
+
+    while (t.time(msec) < timeoutMs) {
+        const double currM = rotDegToM(verticalRot.position(deg));
+        const double traveled = currM - startM;
+        const double distErr = distM - traveled;
+
+        if ((distErrPrev > 0.0 && distErr < 0.0) || (distErrPrev < 0.0 && distErr > 0.0)) crossed = true;
+        distErrPrev = distErr;
+
+        if (!stopLatch) {
+            if (std::fabs(distErr) < stopEnter || (crossed && std::fabs(distErr) < stopExit)) {
+                stopLatch = true;
+                vCmd = 0.0;
+                wCmd = 0.0;
+                stopHoldMs = 0;
+                distPID_.resetBumpless(traveled, 0.0);
             }
         } else {
-            driveStopped = false;
-            LeftMotorGroup.spin(forward, lOut, pct);
-            RightMotorGroup.spin(forward, rOut, pct);
+            if (std::fabs(distErr) > stopExit) {
+                stopLatch = false;
+                stopHoldMs = 0;
+            }
         }
-    } else {
-        driveStopped = false;
-        LeftMotorGroup.spin(forward, lOut, pct);
-        RightMotorGroup.spin(forward, rOut, pct);
+
+        if (stopLatch) {
+            const double currHead = inertial_sensor.heading(deg);
+            const double headErr = angleDiffDeg(holdHead, currHead);
+
+            double w = headPID_.update(-headErr, dt);
+
+            const double headAbs = std::fabs(headErr);
+            if (headAbs < 1.0) {
+                w = 0.0;
+                wCmd = 0.0;
+            } else {
+                wCmd += clampD(w - wCmd, -dwMax, dwMax);
+                w = wCmd;
+            }
+
+            tankDrive(w, -w);
+
+            stopHoldMs += dtMs;
+            if (stopHoldMs >= stopSettleMs) break;
+
+            wait(dtMs, msec);
+            continue;
+        }
+
+        double cap = minCap + 200.0 * std::fabs(distErr);
+        cap = std::min(cap, maxSpeedPct);
+        distPID_.setOutputLimits(-cap, cap);
+
+        double v = distPID_.update(traveled, dt);
+
+        if (std::fabs(distErr) < stopBand) {
+            v = 0.0;
+            vCmd = 0.0;
+        } else {
+            if (std::fabs(distErr) > 0.12) {
+                const double floor = 18.0;
+                if (std::fabs(v) < floor) v = (distErr > 0.0) ? floor : -floor;
+            }
+        }
+
+        if (std::fabs(distErr) < 0.03 && std::fabs(v) < 12.0 && (v * distErr) < 0.0) {
+            v = 0.0;
+        }
+
+        vCmd += clampD(v - vCmd, -dvMax, dvMax);
+        v = vCmd;
+
+        const double currHead = inertial_sensor.heading(deg);
+        const double headErr = angleDiffDeg(holdHead, currHead);
+
+        double w = headPID_.update(-headErr, dt);
+
+        const double vAbs = std::fabs(v);
+        double wScale = std::min(1.0, vAbs / 18.0);
+        wScale = std::max(wScale, 0.25);
+        if (vAbs < 12.0 && std::fabs(headErr) > 2.0) wScale = std::max(wScale, 0.22);
+        w *= wScale;
+
+        wCmd += clampD(w - wCmd, -dwMax, dwMax);
+        w = wCmd;
+
+        tankDrive(v + w, v - w);
+
+        if (std::fabs(distErr) < 0.02 && std::fabs(vCmd) < 6.0) {
+            settledMs += dtMs;
+            if (settledMs >= 40) break;
+        } else {
+            settledMs = 0;
+        }
+
+        wait(dtMs, msec);
+    }
+
+    stopDrive(brake);
+}
+
+void MotionController::drive(double distM, int timeoutMs, double maxSpeedPct) {
+    driveHeading(distM, timeoutMs, maxSpeedPct, inertial_sensor.heading(deg));
+}
+
+void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg) {
+    const double holdHead = norm360(holdHeadingDeg);
+    const double hRad = degToRad(holdHead);
+
+    Pose s = robotPose;
+    const double gx = s.x + distM * std::sin(hRad);
+    const double gy = s.y + distM * std::cos(hRad);
+
+    distPID_.setSetpoint(0.0);
+    distPID_.resetBumpless(0.0, 0.0);
+
+    headPID_.setSetpoint(0.0);
+    headPID_.resetBumpless(0.0, 0.0);
+
+    const int dtMs = 10;
+    const double dt = dtMs / 1000.0;
+
+    const double lookaheadM = 0.20;
+    const double maxOffDeg = 18.0;
+
+    const double posTolM = 0.02;
+    const double latTolM = 0.015;
+    const double angTolDeg = 1.5;
+
+    timer t; t.reset();
+    int settledMs = 0;
+
+    double vCmd = 0.0;
+    const double dvPerSec = 450.0;
+    const double dvMax = dvPerSec * dt;
+
+    double wCmd = 0.0;
+    const double dwPerSec = 260.0;
+    const double dwMax = dwPerSec * dt;
+
+    while (t.time(msec) < timeoutMs) {
+        const double dx = gx - robotPose.x;
+        const double dy = gy - robotPose.y;
+
+        double fwd = dx * std::sin(hRad) + dy * std::cos(hRad);
+        double lat = dx * std::cos(hRad) - dy * std::sin(hRad);
+
+        distPID_.setOutputLimits(-maxSpeedPct, maxSpeedPct);
+        double v = distPID_.update(-fwd, dt);
+
+        double offDeg = radToDeg(std::atan2(lat, lookaheadM));
+        offDeg = clampD(offDeg, -maxOffDeg, +maxOffDeg);
+
+        const double desiredHead = norm360(holdHead + offDeg);
+        const double currHead = inertial_sensor.heading(deg);
+        const double headErr = angleDiffDeg(desiredHead, currHead);
+
+        double w = headPID_.update(-headErr, dt);
+
+        const double vAbs = std::fabs(v);
+        double wScale = std::min(1.0, vAbs / 18.0);
+        wScale = std::max(wScale, 0.25);
+        if (vAbs < 12.0 && std::fabs(headErr) > 2.0) wScale = std::max(wScale, 0.22);
+        w *= wScale;
+
+        vCmd += clampD(v - vCmd, -dvMax, dvMax);
+        wCmd += clampD(w - wCmd, -dwMax, dwMax);
+
+        tankDrive(vCmd + wCmd, vCmd - wCmd);
+
+        if (std::fabs(fwd) < posTolM && std::fabs(lat) < latTolM && std::fabs(headErr) < angTolDeg) {
+            settledMs += dtMs;
+            if (settledMs >= 80) break;
+        } else {
+            settledMs = 0;
+        }
+
+        wait(dtMs, msec);
+    }
+
+    stopDrive(brake);
+}
+
+void MotionController::driveCC(double distM, int timeoutMs, double maxSpeedPct) {
+    driveHeadingCC(distM, timeoutMs, maxSpeedPct, inertial_sensor.heading(deg));
+}
+
+void MotionController::turnTo(double targetDeg, int timeoutMs) {
+    turnPID_.setSetpoint(0.0);
+
+    const int dtMs = 10;
+    const double dt = dtMs / 1000.0;
+
+    timer t; t.reset();
+    int settledMs = 0;
+
+    double prevHead = inertial_sensor.heading(deg);
+    double rateFilt = 0.0;
+    const double rateTau = 0.06;
+    const double alpha = dt / (rateTau + dt);
+    const double rateTol = 8.0;
+
+    {
+        const double curr = inertial_sensor.heading(deg);
+        const double err0 = angleDiffDeg(targetDeg, curr);
+        turnPID_.resetBumpless(-err0, 0.0);
+    }
+
+    while (t.time(msec) < timeoutMs) {
+        const double curr = inertial_sensor.heading(deg);
+        const double err = angleDiffDeg(targetDeg, curr);
+
+        const double dHead = wrap180(curr - prevHead);
+        prevHead = curr;
+        const double rate = dHead / dt;
+        rateFilt += alpha * (rate - rateFilt);
+
+        const double turnOut = turnPID_.update(-err, dt);
+        tankDrive(turnOut, -turnOut);
+
+        if (std::fabs(err) < 1.0 && std::fabs(rateFilt) < rateTol) {
+            settledMs += dtMs;
+            if (settledMs >= 150) break;
+        } else {
+            settledMs = 0;
+        }
+
+        wait(dtMs, msec);
+    }
+
+    stopDrive(brake);
+}
+
+void MotionController::turnBy(double deltaDeg, int timeoutMs) {
+    const double startRot = inertial_sensor.rotation(vex::deg);
+    const double targetRot = startRot + deltaDeg;
+
+    timer t; t.reset();
+    const int dtMs = 10;
+    const double dt = dtMs / 1000.0;
+
+    turnPID_.setSetpoint(0.0);
+
+    double prevRot = inertial_sensor.rotation(vex::deg);
+    double rateFilt = 0.0;
+    const double rateTau = 0.06;
+    const double alpha = dt / (rateTau + dt);
+    const double rateTol = 8.0;
+
+    {
+        const double err0 = targetRot - inertial_sensor.rotation(vex::deg);
+        turnPID_.resetBumpless(-err0, 0.0);
+    }
+
+    int settledMs = 0;
+
+    while (t.time(vex::msec) < timeoutMs) {
+        const double rot = inertial_sensor.rotation(vex::deg);
+        const double err = targetRot - rot;
+
+        const double dRot = rot - prevRot;
+        prevRot = rot;
+        const double rate = dRot / dt;
+        rateFilt += alpha * (rate - rateFilt);
+
+        const double out = turnPID_.update(-err, dt);
+        tankDrive(out, -out);
+
+        if (std::fabs(err) < 1.0 && std::fabs(rateFilt) < rateTol) {
+            settledMs += dtMs;
+            if (settledMs >= 150) break;
+        } else {
+            settledMs = 0;
+        }
+
+        wait(dtMs, vex::msec);
+    }
+
+    stopDrive(vex::brake);
+}
+
+void MotionController::autoCorrect(double targetX, double targetY, double targetHeadingDeg,
+                                   int timeoutMs, double maxSpeedPct) {
+    const double ENTER_DIST = 0.12;
+    const double EXIT_DIST  = 0.07;
+
+    const double ENTER_ANG  = 6.0;
+    const double EXIT_ANG   = 3.0;
+
+    const double ENTER_POS  = 0.06;
+    const double EXIT_POS   = 0.03;
+
+    const double MAX_STEP_M = 0.20;
+
+    const double BACKUP_M   = 0.05;
+
+    const double corrSpeed = std::min(maxSpeedPct, 30.0);
+
+    int turnTimeout   = std::max(450, timeoutMs * 4 / 10);
+    int driveTimeout  = std::max(650, timeoutMs * 5 / 10);
+    int backupTimeout = std::max(450, timeoutMs * 4 / 10);
+
+    bool engagedPos = false;
+    bool didBackup  = false;
+
+    for (int iter = 0; iter < 2; ++iter) {
+        wait(20, msec);
+
+        double dx = targetX - robotPose.x;
+        double dy = targetY - robotPose.y;
+
+        double distNow = std::hypot(dx, dy);
+
+        double currHead = inertial_sensor.heading(vex::deg);
+        double headErrAbs = std::fabs(angleDiffDeg(targetHeadingDeg, currHead));
+
+        if (distNow < EXIT_DIST && headErrAbs < EXIT_ANG) break;
+
+        const double h0 = degToRad(targetHeadingDeg);
+        const double fwdRel0 = dx * std::sin(h0) + dy * std::cos(h0);
+
+        const bool needsCorrection =
+            (distNow > ENTER_DIST) || (headErrAbs > ENTER_ANG) ||
+            (std::fabs(dx) > ENTER_POS) || (std::fabs(dy) > ENTER_POS);
+
+        if (needsCorrection && !didBackup && fwdRel0 > 0.02) {
+            driveHeading(-BACKUP_M, backupTimeout, corrSpeed, targetHeadingDeg);
+            wait(20, msec);
+            turnTo(targetHeadingDeg, turnTimeout);
+            wait(20, msec);
+            didBackup = true;
+        } else if (headErrAbs > ENTER_ANG) {
+            turnTo(targetHeadingDeg, turnTimeout);
+            wait(20, msec);
+        }
+
+        dx = targetX - robotPose.x;
+        dy = targetY - robotPose.y;
+        distNow = std::hypot(dx, dy);
+
+        const double h = degToRad(targetHeadingDeg);
+        double fwd = dx * std::sin(h) + dy * std::cos(h);
+        double lat = dx * std::cos(h) - dy * std::sin(h);
+
+        if (!engagedPos) {
+            if (distNow > ENTER_DIST) engagedPos = true;
+            if (!engagedPos && (std::fabs(lat) > ENTER_POS || std::fabs(fwd) > ENTER_POS)) engagedPos = true;
+        }
+
+        if (engagedPos) {
+            if (std::fabs(lat) < EXIT_POS) lat = 0.0;
+            if (std::fabs(fwd) < EXIT_POS) fwd = 0.0;
+
+            if (std::fabs(lat) > ENTER_POS) {
+                double latStep = clampD(lat, -MAX_STEP_M, MAX_STEP_M);
+                double slideHeading = wrap180(targetHeadingDeg + (latStep > 0.0 ? +90.0 : -90.0));
+
+                turnTo(slideHeading, turnTimeout);
+                driveHeading(std::fabs(latStep), driveTimeout, corrSpeed, slideHeading);
+                turnTo(targetHeadingDeg, turnTimeout);
+
+                wait(20, msec);
+            }
+
+            dx = targetX - robotPose.x;
+            dy = targetY - robotPose.y;
+
+            const double h2 = degToRad(targetHeadingDeg);
+            fwd = dx * std::sin(h2) + dy * std::cos(h2);
+
+            if (std::fabs(fwd) < EXIT_POS) fwd = 0.0;
+
+            if (std::fabs(fwd) > ENTER_POS) {
+                turnTo(targetHeadingDeg, turnTimeout);
+                wait(20, msec);
+
+                double fwdStep = clampD(fwd, -MAX_STEP_M, MAX_STEP_M);
+                driveHeading(fwdStep, driveTimeout, corrSpeed, targetHeadingDeg);
+                wait(20, msec);
+            }
+        }
+
+        dx = targetX - robotPose.x;
+        dy = targetY - robotPose.y;
+        distNow = std::hypot(dx, dy);
+
+        currHead = inertial_sensor.heading(vex::deg);
+        headErrAbs = std::fabs(angleDiffDeg(targetHeadingDeg, currHead));
+
+        if (distNow < EXIT_DIST && headErrAbs < EXIT_ANG) break;
     }
 }
 
-static double filteredHueManual() {
-    static double buf[5] = {0,0,0,0,0};
-    static int idx = 0;
-    static int count = 0;
-
-    buf[idx] = ballSensor.hue();
-    idx = (idx + 1) % 5;
-    if (count < 5) count++;
-
-    double tmp[5];
-    for (int i = 0; i < count; i++) tmp[i] = buf[i];
-
-    std::sort(tmp, tmp + count);
-    return tmp[count / 2];
-}
-
-static void updateBallLine() {
-    Controller1.Screen.clearLine(3);
-    Controller1.Screen.setCursor(3, 1);
-
-    if (!ballSensor.isNearObject()) {
-        Controller1.Screen.print("BALL: NONE");
+void MotionController::driveAC(double distM, int timeoutMs, double maxSpeedPct,
+                              int correctTimeoutMs, double correctSpeedPct) {
+    if (!autoCorrectEnabled_) {
+        drive(distM, timeoutMs, maxSpeedPct);
         return;
     }
 
-    double hue = filteredHueManual();
+    Pose s = robotPose;
+    double holdHead = inertial_sensor.heading(vex::deg);
 
-    bool isRed  = (hue < 20 || hue > 340);
-    bool isBlue = (hue > 200 && hue < 250);
+    drive(distM, timeoutMs, maxSpeedPct);
 
-    const char* c = isRed ? "RED" : (isBlue ? "BLUE" : "UNK");
+    const double h = degToRad(holdHead);
+    double gx = s.x + distM * std::sin(h);
+    double gy = s.y + distM * std::cos(h);
 
-    bool isOpponent =
-        (myAlliance == RED  && isBlue) ||
-        (myAlliance == BLUE && isRed);
-
-    Controller1.Screen.print("BALL:%s H:%5.1f %s", c, hue, isOpponent ? "OPP" : "ALLY");
+    autoCorrect(gx, gy, holdHead, correctTimeoutMs, correctSpeedPct);
 }
 
-static void updateControllerScreen(bool isFast, bool showOdom) {
-    Controller1.Screen.clearLine(1);
-    Controller1.Screen.clearLine(2);
-    Controller1.Screen.clearLine(3);
-
-    if (!showOdom) {
-        Controller1.Screen.setCursor(1, 1);
-        Controller1.Screen.print("SPEED: %s", isFast ? "FAST" : "SLOW");
-
-        Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("WINGS: %s", wings.isExtended() ? "UP" : "DOWN");
-
-        updateBallLine();
-    } else {
-        const double x_cm  = robotPose.x * 100.0;
-        const double y_cm  = robotPose.y * 100.0;
-        const double thDeg = wrap360(radToDeg(robotPose.theta));
-
-        Controller1.Screen.setCursor(1, 1);
-        Controller1.Screen.print("X:%6.1f cm", x_cm);
-        Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("Y:%6.1f cm", y_cm);
-        Controller1.Screen.setCursor(3, 1);
-        Controller1.Screen.print("T:%6.1f deg", thDeg);
+void MotionController::driveHeadingAC(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg,
+                                     int correctTimeoutMs, double correctSpeedPct) {
+    if (!autoCorrectEnabled_) {
+        driveHeading(distM, timeoutMs, maxSpeedPct, holdHeadingDeg);
+        return;
     }
+
+    Pose s = robotPose;
+
+    driveHeading(distM, timeoutMs, maxSpeedPct, holdHeadingDeg);
+
+    const double h = degToRad(holdHeadingDeg);
+    double gx = s.x + distM * std::sin(h);
+    double gy = s.y + distM * std::cos(h);
+
+    autoCorrect(gx, gy, holdHeadingDeg, correctTimeoutMs, correctSpeedPct);
 }
 
-void usercontrol() {
-    ballSensor.setLightPower(100, percent);
-
-    LeftMotorGroup.setStopping(coast);
-    RightMotorGroup.setStopping(coast);
-
-    updateControllerScreen(isFast, showOdom);
-
-    while (true) {
-        bool needsUpdate = false;
-
-        joyStickControl();
-        Descore();
-        buttonPressing(needsUpdate);
-        ScreenTimer(needsUpdate);
-
-        const int outtakeBase = wings.isExtended() ? OUTTAKE_WINGS_UP_PCT : OUTTAKE_NORMAL_PCT;
-
-        double outtakeTarget = 0.0;
-        if (Controller1.ButtonL2.pressing()) {
-            outtakeTarget = +outtakeBase;
-        } else if (Controller1.ButtonR2.pressing()) {
-            outtakeTarget = -outtakeBase;
-        } else {
-            outtakeTarget = 0.0;
-        }
-
-        {
-            double delta = outtakeTarget - outtakeCmd;
-            bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(outtakeCmd));
-            double rate = increasingMag ? OUTTAKE_ACCEL_PCT_PER_S : OUTTAKE_DECEL_PCT_PER_S;
-            double maxStep = rate * DT;
-
-            if (delta >  maxStep) delta =  maxStep;
-            if (delta < -maxStep) delta = -maxStep;
-
-            outtakeCmd += delta;
-        }
-
-        if (std::fabs(outtakeCmd) < 1.0) {
-            stopOutake();
-            outtakeCmd = 0.0;
-        } else if (outtakeCmd > 0) {
-            runOutake((int)std::fabs(outtakeCmd));
-        } else {
-            reverseOutake((int)std::fabs(outtakeCmd));
-        }
-
-        wait(20, msec);
+void MotionController::turnToAC(double targetDeg, int timeoutMs,
+                               int correctTimeoutMs, double correctSpeedPct) {
+    if (!autoCorrectEnabled_) {
+        turnTo(targetDeg, timeoutMs);
+        return;
     }
+
+    Pose s = robotPose;
+
+    turnTo(targetDeg, timeoutMs);
+
+    autoCorrect(s.x, s.y, targetDeg, correctTimeoutMs, correctSpeedPct);
+}
+
+void MotionController::turnByAC(double deltaDeg, int timeoutMs,
+                               int correctTimeoutMs, double correctSpeedPct) {
+    if (!autoCorrectEnabled_) {
+        turnBy(deltaDeg, timeoutMs);
+        return;
+    }
+
+    Pose s = robotPose;
+    double startHead = inertial_sensor.heading(vex::deg);
+    double targetHead = norm360(startHead + deltaDeg);
+
+    turnBy(deltaDeg, timeoutMs);
+
+    autoCorrect(s.x, s.y, targetHead, correctTimeoutMs, correctSpeedPct);
 }

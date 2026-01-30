@@ -1,3 +1,4 @@
+// manual.cpp
 #include "manual.h"
 #include "robot_config.h"
 #include "subsystems.h"
@@ -68,6 +69,9 @@ static void Descore() {
         stopArm();
     }
 }
+
+static void updateBallLine();
+static void updateControllerScreen(bool isFast, bool showOdom);
 
 static void buttonPressing(bool& needsUpdate) {
     bool r1 = Controller1.ButtonR1.pressing();
