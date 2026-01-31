@@ -30,7 +30,7 @@ rotation horizontalRot(PORT6, false);
 vision AiSensor(PORT12);
 optical ballSensor(PORT18);
 
-motor DescoreMotor(PORT4, ratio36_1, true);
+motor DescoreMotor(PORT17, ratio36_1, true);
 
 namespace config {
     const double TRACK_WIDTH_M = 0.320;

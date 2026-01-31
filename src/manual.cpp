@@ -1,4 +1,3 @@
-// manual.cpp
 #include "manual.h"
 #include "robot_config.h"
 #include "subsystems.h"
@@ -9,11 +8,11 @@
 
 using namespace vex;
 
-// ============================
+// ============================================================================
 // Tunables / Constants
-// ============================
+// ============================================================================
 
-static constexpr int    kOuttakeNormalPct   = 40;
+static constexpr int    kOuttakeNormalPct   = 55;
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
 static constexpr double kOuttakeAccelPctPerS = 600.0;
@@ -25,33 +24,33 @@ static constexpr double kTurnCurve = 0.250;
 static constexpr double kLeftBias  = 1.00;
 static constexpr double kRightBias = 1.00;
 
-static constexpr double kDriveAccelPctPerS = 350.0;
-static constexpr double kDriveDecelPctPerS = 290.0;
-static constexpr double kDt               = 0.02; // 20ms loop
+static constexpr double kDriveAccelPctPerS = 1000.0;
+static constexpr double kDriveDecelPctPerS = 950.0;
+static constexpr double kDt               = 0.02;
 
-static constexpr double kDriveScaleFast = 1.00;
-static constexpr double kDriveScaleSlow = 0.40;
+static constexpr double kDriveScaleFast = 0.40;
+static constexpr double kDriveScaleSlow = 0.25;
 
-static constexpr double kTurnScaleFast  = 0.55;
-static constexpr double kTurnScaleSlow  = 0.35;
+static constexpr double kTurnScaleFast  = 0.40;                                                                             
+static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
-
-static constexpr double kTurnAccelPctPerS = 900.0;
-static constexpr double kTurnDecelPctPerS = 1100.0;
+static constexpr double kTurnBoostAtFullFwd = 0.25;
 
 static constexpr int    kDeadbandPct = 0;
 
-// Drive lock behavior
-static constexpr int    kDriveUnlockJoyThreshPct = 8; // joystick movement unlocks hold
+static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
-// ============================
+static constexpr int kIntakePct            = 50;
+static constexpr int kScoreIntakePct       = 50;
+static constexpr int kOuttakeFeedPct       = 15;
+static constexpr int kReversePct           = 25; //for skills reduce to 25 default 40
+
+// ============================================================================
 // State
-// ============================
+// ============================================================================
 
 static double g_fwdCmd = 0.0;
 static double g_trnCmd = 0.0;
-
-// outtake ramp state
 static double g_outtakeCmd = 0.0;
 
 static bool g_prevR1 = false, g_prevUp = false, g_prevX = false, g_prevY = false;
@@ -65,13 +64,12 @@ static int  g_ballTimerMs   = 0;
 
 static bool g_driveStopped = true;
 
-// drive lock
 static bool g_driveLocked = false;
 static bool g_forceScreenUpdate = false;
 
-// ============================
-// Small helpers
-// ============================
+// ============================================================================
+// Helpers
+// ============================================================================
 
 static inline double applyCurvePct(double inputPct, double curve) {
     const double v = inputPct / 100.0;
@@ -92,22 +90,26 @@ static inline double slewTo(double target, double current, double accel, double 
     return current + delta;
 }
 
-// joystick controls
+static inline void normalizeArcade(double& leftPct, double& rightPct) {
+    const double maxMag = std::max(std::fabs(leftPct), std::fabs(rightPct));
+    if (maxMag > 100.0) {
+        const double s = 100.0 / maxMag;
+        leftPct  *= s;
+        rightPct *= s;
+    }
+}
+
 static inline double readForwardAxisPct() {
-    const double a3 = Controller1.Axis3.position(pct);
-    const double a2 = Controller1.Axis2.position(pct);
-    return (std::fabs(a3) >= std::fabs(a2)) ? a3 : a2;
+    return Controller1.Axis3.position(pct);
 }
 
 static inline double readTurnAxisPct() {
-    const double a1 = Controller1.Axis1.position(pct);
-    const double a4 = Controller1.Axis4.position(pct);
-    return (std::fabs(a1) >= std::fabs(a4)) ? a1 : a4;
+    return Controller1.Axis1.position(pct);
 }
 
-// ============================
-// Ball line (driver screen)
-// ============================
+// ============================================================================
+// Driver screen
+// ============================================================================
 
 static double filteredHueManual() {
     static double buf[5] = {0,0,0,0,0};
@@ -135,10 +137,8 @@ static void updateBallLine() {
     }
 
     const double hue = filteredHueManual();
-
     const bool isRed  = (hue < 20 || hue > 340);
     const bool isBlue = (hue > 200 && hue < 250);
-
     const char* c = isRed ? "RED" : (isBlue ? "BLUE" : "UNK");
 
     const bool isOpponent =
@@ -155,11 +155,8 @@ static void updateControllerScreen() {
 
     if (!g_showOdom) {
         Controller1.Screen.setCursor(1, 1);
-        if (g_driveLocked) {
-            Controller1.Screen.print("SPEED:%s LOCK", g_isFast ? "FAST" : "SLOW");
-        } else {
-            Controller1.Screen.print("SPEED: %s", g_isFast ? "FAST" : "SLOW");
-        }
+        if (g_driveLocked) Controller1.Screen.print("SPEED:%s LOCK", g_isFast ? "FAST" : "SLOW");
+        else              Controller1.Screen.print("SPEED: %s", g_isFast ? "FAST" : "SLOW");
 
         Controller1.Screen.setCursor(2, 1);
         Controller1.Screen.print("WINGS: %s", wings.isExtended() ? "UP" : "DOWN");
@@ -197,9 +194,9 @@ static void screenTick(bool needsUpdate) {
     }
 }
 
-// ============================
-// Control handlers
-// ============================
+// ============================================================================
+// Drive control
+// ============================================================================
 
 static void engageDriveHold() {
     LeftMotorGroup.setStopping(hold);
@@ -214,12 +211,10 @@ static void engageDriveHold() {
 static void disengageDriveHold() {
     LeftMotorGroup.setStopping(coast);
     RightMotorGroup.setStopping(coast);
-    // do not force-stop here; let handleDrive take over smoothly
     g_driveStopped = true;
 }
 
 static void handleDrive() {
-    // If locked, unlock automatically on joystick movement
     if (g_driveLocked) {
         const double rawFwd  = readForwardAxisPct();
         const double rawTurn = readTurnAxisPct();
@@ -230,7 +225,6 @@ static void handleDrive() {
             disengageDriveHold();
             Controller1.rumble(".");
             g_forceScreenUpdate = true;
-            // fall through and drive normally this cycle
         } else {
             engageDriveHold();
             return;
@@ -258,10 +252,18 @@ static void handleDrive() {
     }
 
     g_fwdCmd = slewTo(fwdReq, g_fwdCmd, kDriveAccelPctPerS, kDriveDecelPctPerS);
-    g_trnCmd = slewTo(trnReq, g_trnCmd, kTurnAccelPctPerS,  kTurnDecelPctPerS);
 
-    const double lOut = clampPct((g_fwdCmd + g_trnCmd) * kLeftBias);
-    const double rOut = clampPct((g_fwdCmd - g_trnCmd) * kRightBias);
+    const double fwdMag = std::fabs(g_fwdCmd);
+    const double boost  = 1.0 + kTurnBoostAtFullFwd * (fwdMag / 100.0);
+    g_trnCmd = clampD(trnReq * boost, -kTurnMaxPct, kTurnMaxPct);
+
+    double lRaw = (g_fwdCmd + g_trnCmd) * kLeftBias;
+    double rRaw = (g_fwdCmd - g_trnCmd) * kRightBias;
+
+    normalizeArcade(lRaw, rRaw);
+
+    const double lOut = clampPct(lRaw);
+    const double rOut = clampPct(rRaw);
 
     if (neutralInput) {
         if (std::fabs(g_fwdCmd) < 0.8 && std::fabs(g_trnCmd) < 0.8) {
@@ -310,7 +312,6 @@ static void handleToggles(bool& needsUpdate) {
     }
     g_prevY = y;
 
-    // B toggle: lock wheels (hold). Moving joystick unlocks automatically.
     const bool b = Controller1.ButtonB.pressing();
     if (b && !g_prevB) {
         g_driveLocked = !g_driveLocked;
@@ -326,13 +327,11 @@ static void handleToggles(bool& needsUpdate) {
     g_prevB = b;
 }
 
-// Fixed: one unified handler owns BOTH intake + outtake, so they don't fight each other
-// Controls (priority): R2 reverse > L2 outtake > L1 intake > none
 static void handleIntakeOuttake() {
     const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;
 
     const bool intakeFwd  = Controller1.ButtonL1.pressing();
-    const bool outtakeFwd = Controller1.ButtonL2.pressing();
+    const bool scoreFwd   = Controller1.ButtonL2.pressing();
     const bool reverseAll = Controller1.ButtonR2.pressing();
 
     int intakeDir = 0;
@@ -341,19 +340,18 @@ static void handleIntakeOuttake() {
 
     if (reverseAll) {
         intakeDir = -1;
-        intakePct = 100;
+        intakePct = kReversePct;
         outtakeTarget = -outtakeBase;
         setSorterEnabled(false);
-    } else if (outtakeFwd) {
+    } else if (scoreFwd) {
         intakeDir = +1;
-        intakePct = 100;
+        intakePct = kScoreIntakePct;
         outtakeTarget = +outtakeBase;
-        setSorterEnabled(true);
+        setSorterEnabled(false);
     } else if (intakeFwd) {
         intakeDir = +1;
-        intakePct = 100;
-        outtakeTarget = 0.0; // keep outtake off while just intaking
-        setSorterEnabled(true);
+        intakePct = kIntakePct;
+        setSorterEnabled(false);
     } else {
         intakeDir = 0;
         intakePct = 0;
@@ -361,16 +359,10 @@ static void handleIntakeOuttake() {
         setSorterEnabled(false);
     }
 
-    // Intake motor(s)
-    if (intakeDir > 0) {
-        runIntake(intakePct);
-    } else if (intakeDir < 0) {
-        reverseIntake(intakePct);
-    } else {
-        stopIntake();
-    }
+    if (intakeDir > 0)      runIntake(intakePct);
+    else if (intakeDir < 0) reverseIntake(intakePct);
+    else                    stopIntake();
 
-    // Outtake motor(s) with ramp
     const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
     const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
     const double step = rate * kDt;
@@ -390,23 +382,14 @@ static void handleIntakeOuttake() {
 }
 
 static void handleDescore() {
-    if (Controller1.ButtonLeft.pressing()) {
-        moveArmLeft(25);
-    } else if (Controller1.ButtonRight.pressing()) {
-        moveArmRight(25);
-    } else {
-        stopArm();
-    }
+    if (Controller1.ButtonRight.pressing())       moveArmLeft(25);
+    else if (Controller1.ButtonLeft.pressing()) moveArmRight(25);
+    else                                         stopArm();
 }
-
-// ============================
-// usercontrol()
-// ============================
 
 void usercontrol() {
     ballSensor.setLightPower(100, percent);
 
-    // default: coast (B toggles hold)
     LeftMotorGroup.setStopping(coast);
     RightMotorGroup.setStopping(coast);
 
@@ -424,10 +407,7 @@ void usercontrol() {
 
         handleDescore();
         handleToggles(needsUpdate);
-
-        // unified intake+outtake so they don't conflict
         handleIntakeOuttake();
-
         screenTick(needsUpdate);
 
         wait(20, msec);

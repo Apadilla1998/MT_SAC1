@@ -14,7 +14,8 @@ enum class AutonRoutine {
     AUTO_CORRECT_RED_LEFT,
     SIMPLE_AUTON_LEFT,
     SIMPLE_AUTON_RIGHT,
-    SKILLS
+    SKILLS,
+    HARD_CODED_RIGHT
 };
 
 extern AutonRoutine selectedAuton;
