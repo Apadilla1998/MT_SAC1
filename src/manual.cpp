@@ -29,9 +29,8 @@ static constexpr double kDriveDecelPctPerS = 950.0;
 static constexpr double kDt               = 0.02;
 
 static constexpr double kDriveScaleFast = 0.40;
-static constexpr double kDriveScaleSlow = 0.25;
 
-static constexpr double kTurnScaleFast  = 0.40;                                                                             
+static constexpr double kTurnScaleFast  = 0.40;
 static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
@@ -44,6 +43,10 @@ static constexpr int kIntakePct            = 50;
 static constexpr int kScoreIntakePct       = 50;
 static constexpr int kOuttakeFeedPct       = 15;
 static constexpr int kReversePct           = 25; //for skills reduce to 25 default 40
+
+// While holding R1, drivetrain max output becomes 70%
+static constexpr double kDriveScaleR1 = 0.70;
+static constexpr double kTurnScaleR1  = 0.70;
 
 // ============================================================================
 // State
@@ -66,6 +69,9 @@ static bool g_driveStopped = true;
 
 static bool g_driveLocked = false;
 static bool g_forceScreenUpdate = false;
+
+// R1 continuous rumble timer
+static int g_r1RumbleTimerMs = 0;
 
 // ============================================================================
 // Helpers
@@ -195,6 +201,24 @@ static void screenTick(bool needsUpdate) {
 }
 
 // ============================================================================
+// R1 continuous rumble
+// ============================================================================
+
+static void handleR1ContinuousRumble() {
+    const bool r1 = Controller1.ButtonR1.pressing();
+
+    if (r1) {
+        g_r1RumbleTimerMs += 20;          // loop is 20ms
+        if (g_r1RumbleTimerMs >= 300) {   // pulse about every 0.3s
+            Controller1.rumble("-");
+            g_r1RumbleTimerMs = 0;
+        }
+    } else {
+        g_r1RumbleTimerMs = 0;
+    }
+}
+
+// ============================================================================
 // Drive control
 // ============================================================================
 
@@ -239,8 +263,14 @@ static void handleDrive() {
 
     const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
 
-    const double driveScale = g_isFast ? kDriveScaleFast : kDriveScaleSlow;
-    const double turnScale  = g_isFast ? kTurnScaleFast  : kTurnScaleSlow;
+    // R1 sets drivetrain max to 70% while held
+    const bool boostR1 = Controller1.ButtonR1.pressing();
+
+    const double driveScale = boostR1 ? kDriveScaleR1
+                                      : (g_isFast ? kDriveScaleFast : kDriveScaleFast);
+
+    const double turnScale  = boostR1 ? kTurnScaleR1
+                                      : (g_isFast ? kTurnScaleFast  : kTurnScaleFast);
 
     double fwdReq = fwdIn * driveScale;
     double trnReq = trnIn * turnScale;
@@ -282,13 +312,13 @@ static void handleDrive() {
 }
 
 static void handleToggles(bool& needsUpdate) {
-    const bool r1 = Controller1.ButtonR1.pressing();
-    if (r1 && !g_prevR1) {
-        g_isFast = !g_isFast;
-        Controller1.rumble(".");
-        needsUpdate = true;
-    }
-    g_prevR1 = r1;
+    // const bool r1 = Controller1.ButtonR1.pressing();
+    // if (r1 && !g_prevR1) {
+    //     g_isFast = !g_isFast;
+    //     Controller1.rumble(".");
+    //     needsUpdate = true;
+    // }
+    // g_prevR1 = r1;
 
     const bool up = Controller1.ButtonUp.pressing();
     if (up && !g_prevUp) {
@@ -328,36 +358,42 @@ static void handleToggles(bool& needsUpdate) {
 }
 
 static void handleIntakeOuttake() {
-    const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;
+    // R1 = BOOST modifier (does nothing by itself)
+    const bool boost = Controller1.ButtonR1.pressing();
 
     const bool intakeFwd  = Controller1.ButtonL1.pressing();
     const bool scoreFwd   = Controller1.ButtonL2.pressing();
     const bool reverseAll = Controller1.ButtonR2.pressing();
 
+    // Base outtake depends on wings, but BOOST overrides to 100
+    const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;
+    const int outtakeMag  = boost ? 100 : outtakeBase;
+
     int intakeDir = 0;
     int intakePct = 0;
     double outtakeTarget = 0.0;
 
+    // Priority: R2 > L2 > L1
     if (reverseAll) {
-        intakeDir = -1;
-        intakePct = kReversePct;
-        outtakeTarget = -outtakeBase;
-        setSorterEnabled(false);
+        intakeDir     = -1;
+        intakePct     = boost ? 100 : kReversePct;
+        outtakeTarget = -outtakeMag;
     } else if (scoreFwd) {
-        intakeDir = +1;
-        intakePct = kScoreIntakePct;
-        outtakeTarget = +outtakeBase;
-        setSorterEnabled(false);
+        intakeDir     = +1;
+        intakePct     = boost ? 100 : kScoreIntakePct;
+        outtakeTarget = +outtakeMag;
     } else if (intakeFwd) {
-        intakeDir = +1;
-        intakePct = kIntakePct;
-        setSorterEnabled(false);
+        intakeDir     = +1;
+        intakePct     = boost ? 100 : kIntakePct;
+        outtakeTarget = 0.0; // intake-only
     } else {
-        intakeDir = 0;
-        intakePct = 0;
+        intakeDir     = 0;
+        intakePct     = 0;
         outtakeTarget = 0.0;
-        setSorterEnabled(false);
     }
+
+    // Manual control: sorter off while driving intakes/outtakes
+    setSorterEnabled(false);
 
     if (intakeDir > 0)      runIntake(intakePct);
     else if (intakeDir < 0) reverseIntake(intakePct);
@@ -382,9 +418,9 @@ static void handleIntakeOuttake() {
 }
 
 static void handleDescore() {
-    if (Controller1.ButtonRight.pressing())       moveArmLeft(25);
+    if (Controller1.ButtonRight.pressing())      moveArmLeft(25);
     else if (Controller1.ButtonLeft.pressing()) moveArmRight(25);
-    else                                         stopArm();
+    else                                        stopArm();
 }
 
 void usercontrol() {
@@ -408,6 +444,10 @@ void usercontrol() {
         handleDescore();
         handleToggles(needsUpdate);
         handleIntakeOuttake();
+
+        // R1 continuous vibration while held
+        handleR1ContinuousRumble();
+
         screenTick(needsUpdate);
 
         wait(20, msec);

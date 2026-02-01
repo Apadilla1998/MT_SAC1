@@ -79,6 +79,14 @@ static void HardCodedRight() {
     stopOutake();
     wait(10, msec);
 
+    driveDistanceByMotors(7, 12, 7000);
+    wait(10, msec);
+
+    m.turnTo(70, 5000);
+    wait(10, msec);
+
+
+
     // driveDistanceByMotors(28.2, 20, 6000);
     // m.turnTo(45, 2500);
     // wait(10, msec);
