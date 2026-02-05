@@ -8,10 +8,7 @@
 
 using namespace vex;
 
-// ============================================================================
 // Tunables / Constants
-// ============================================================================
-
 static constexpr int    kOuttakeNormalPct   = 100;
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
@@ -30,7 +27,7 @@ static constexpr double kDt               = 0.025;
 
 static constexpr double kDriveScaleFast = 0.60;
 
-static constexpr double kTurnScaleFast  = 0.45;
+static constexpr double kTurnScaleFast  = 0.425;
 static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
@@ -39,7 +36,7 @@ static constexpr int    kDeadbandPct = 0;
 
 static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
-static constexpr int kIntakePct            = 50;
+static constexpr int kIntakePct            = 100;
 static constexpr int kScoreIntakePct       = 50;
 static constexpr int kOuttakeFeedPct       = 15;
 static constexpr int kReversePct           = 25; //for skills reduce to 25 default 40
@@ -48,16 +45,15 @@ static constexpr int kReversePct           = 25; //for skills reduce to 25 defau
 static constexpr double kDriveScaleR1 = 0.70;
 static constexpr double kTurnScaleR1  = 0.70;
 
-// ============================================================================
-// State
-// ============================================================================
 
+// State
 static double g_fwdCmd = 0.0;
 static double g_trnCmd = 0.0;
 static double g_outtakeCmd = 0.0;
 
 static bool g_prevR1 = false, g_prevUp = false, g_prevX = false, g_prevY = false;
 static bool g_prevB  = false, g_prevL1 = false, g_prevL2 = false, g_prevR2 = false;
+static bool g_prevDown = false;
 
 static bool g_isFast   = true;
 static bool g_showOdom = false;
@@ -70,6 +66,9 @@ static bool g_driveStopped = true;
 static bool g_driveLocked = false;
 static bool g_forceScreenUpdate = false;
 
+// NEW: Drive inversion toggle (Down button)
+static bool g_driveInverted = false;
+
 // R1 continuous rumble timer
 static int g_r1RumbleTimerMs = 0;
 
@@ -77,10 +76,7 @@ static int g_r1RumbleTimerMs = 0;
 enum class IntakeMode { OFF, INTAKE, SCORE, REVERSE };
 static IntakeMode g_intakeMode = IntakeMode::OFF;
 
-// ============================================================================
 // Helpers
-// ============================================================================
-
 static inline double applyCurvePct(double inputPct, double curve) {
     const double v = inputPct / 100.0;
     return ((curve * std::pow(v, 3)) + ((1.0 - curve) * v)) * 100.0;
@@ -110,17 +106,16 @@ static inline void normalizeArcade(double& leftPct, double& rightPct) {
 }
 
 static inline double readForwardAxisPct() {
-    return Controller1.Axis3.position(pct);
+    double v = Controller1.Axis3.position(pct);
+    return g_driveInverted ? -v : v;
 }
 
 static inline double readTurnAxisPct() {
-    return Controller1.Axis1.position(pct);
+    double v = Controller1.Axis1.position(pct);
+    return g_driveInverted ? v : v;
 }
 
-// ============================================================================
 // Driver screen
-// ============================================================================
-
 static double filteredHueManual() {
     static double buf[5] = {0,0,0,0,0};
     static int idx = 0;
@@ -165,8 +160,8 @@ static void updateControllerScreen() {
 
     if (!g_showOdom) {
         Controller1.Screen.setCursor(1, 1);
-        if (g_driveLocked) Controller1.Screen.print("SPEED:%s LOCK", g_isFast ? "FAST" : "SLOW");
-        else              Controller1.Screen.print("SPEED: %s", g_isFast ? "FAST" : "SLOW");
+        if (g_driveLocked) Controller1.Screen.print("SPEED:%s%s LOCK", g_isFast ? "FAST" : "SLOW", g_driveInverted ? " INV" : "");
+        else              Controller1.Screen.print("SPEED:%s%s",       g_isFast ? "FAST" : "SLOW", g_driveInverted ? " INV" : "");
 
         Controller1.Screen.setCursor(2, 1);
         Controller1.Screen.print("WINGS: %s", wings.isExtended() ? "UP" : "DOWN");
@@ -350,6 +345,15 @@ static void handleToggles(bool& needsUpdate) {
         needsUpdate = true;
     }
     g_prevB = b;
+
+    // NEW: Down toggles inverted drive controls
+    const bool down = Controller1.ButtonDown.pressing();
+    if (down && !g_prevDown) {
+        g_driveInverted = !g_driveInverted;
+        Controller1.rumble(g_driveInverted ? ".." : "--");
+        needsUpdate = true;
+    }
+    g_prevDown = down;
 }
 
 static void handleIntakeOuttake() {
@@ -415,7 +419,7 @@ static void handleIntakeOuttake() {
 
     // Disable sorter only while manual intake/outtake is active
     if (g_intakeMode != IntakeMode::OFF) {
-        setSorterEnabled(false);
+        setSorterEnabled(true);
     }
 
     // Intake motor control (instant on/off based on toggle state)

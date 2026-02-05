@@ -40,7 +40,7 @@ static constexpr double kBlueMax    = 270.0;
 static constexpr int kConfirmSamples = 4;
 
 // Reject timings
-static constexpr int kRejectMs   = 150;
+static constexpr int kRejectMs   = 250;
 static constexpr int kCooldownMs = 100;
 
 // Reject motor strengths
