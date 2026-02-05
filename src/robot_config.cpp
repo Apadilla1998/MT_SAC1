@@ -24,7 +24,7 @@ motor Outtake(PORT11, ratio6_1, false);
 digital_out wingsPiston(Brain.ThreeWirePort.B);
 inertial inertial_sensor(PORT21);
 
-rotation verticalRot(PORT7, false);
+rotation verticalRot(PORT7, true);
 rotation horizontalRot(PORT6, false);
 
 vision AiSensor(PORT12);

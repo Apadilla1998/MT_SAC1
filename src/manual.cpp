@@ -12,7 +12,7 @@ using namespace vex;
 // Tunables / Constants
 // ============================================================================
 
-static constexpr int    kOuttakeNormalPct   = 55;
+static constexpr int    kOuttakeNormalPct   = 100;
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
 static constexpr double kOuttakeAccelPctPerS = 600.0;
@@ -24,13 +24,13 @@ static constexpr double kTurnCurve = 0.250;
 static constexpr double kLeftBias  = 1.00;
 static constexpr double kRightBias = 1.00;
 
-static constexpr double kDriveAccelPctPerS = 1000.0;
+static constexpr double kDriveAccelPctPerS = 1500.0;
 static constexpr double kDriveDecelPctPerS = 950.0;
-static constexpr double kDt               = 0.02;
+static constexpr double kDt               = 0.025;
 
-static constexpr double kDriveScaleFast = 0.40;
+static constexpr double kDriveScaleFast = 0.60;
 
-static constexpr double kTurnScaleFast  = 0.40;
+static constexpr double kTurnScaleFast  = 0.45;
 static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
@@ -57,7 +57,7 @@ static double g_trnCmd = 0.0;
 static double g_outtakeCmd = 0.0;
 
 static bool g_prevR1 = false, g_prevUp = false, g_prevX = false, g_prevY = false;
-static bool g_prevB  = false;
+static bool g_prevB  = false, g_prevL1 = false, g_prevL2 = false, g_prevR2 = false;
 
 static bool g_isFast   = true;
 static bool g_showOdom = false;
@@ -72,6 +72,10 @@ static bool g_forceScreenUpdate = false;
 
 // R1 continuous rumble timer
 static int g_r1RumbleTimerMs = 0;
+
+// Intake toggle mode
+enum class IntakeMode { OFF, INTAKE, SCORE, REVERSE };
+static IntakeMode g_intakeMode = IntakeMode::OFF;
 
 // ============================================================================
 // Helpers
@@ -208,8 +212,8 @@ static void handleR1ContinuousRumble() {
     const bool r1 = Controller1.ButtonR1.pressing();
 
     if (r1) {
-        g_r1RumbleTimerMs += 20;          // loop is 20ms
-        if (g_r1RumbleTimerMs >= 300) {   // pulse about every 0.3s
+        g_r1RumbleTimerMs += 20;
+        if (g_r1RumbleTimerMs >= 300) {
             Controller1.rumble("-");
             g_r1RumbleTimerMs = 0;
         }
@@ -263,7 +267,6 @@ static void handleDrive() {
 
     const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
 
-    // R1 sets drivetrain max to 70% while held
     const bool boostR1 = Controller1.ButtonR1.pressing();
 
     const double driveScale = boostR1 ? kDriveScaleR1
@@ -312,14 +315,6 @@ static void handleDrive() {
 }
 
 static void handleToggles(bool& needsUpdate) {
-    // const bool r1 = Controller1.ButtonR1.pressing();
-    // if (r1 && !g_prevR1) {
-    //     g_isFast = !g_isFast;
-    //     Controller1.rumble(".");
-    //     needsUpdate = true;
-    // }
-    // g_prevR1 = r1;
-
     const bool up = Controller1.ButtonUp.pressing();
     if (up && !g_prevUp) {
         wings.toggle();
@@ -358,14 +353,33 @@ static void handleToggles(bool& needsUpdate) {
 }
 
 static void handleIntakeOuttake() {
-    // R1 = BOOST modifier (does nothing by itself)
+    // R1 = BOOST modifier
     const bool boost = Controller1.ButtonR1.pressing();
 
-    const bool intakeFwd  = Controller1.ButtonL1.pressing();
-    const bool scoreFwd   = Controller1.ButtonL2.pressing();
-    const bool reverseAll = Controller1.ButtonR2.pressing();
+    const bool l1 = Controller1.ButtonL1.pressing(); // intake toggle
+    const bool l2 = Controller1.ButtonL2.pressing(); // score toggle
+    const bool r2 = Controller1.ButtonR2.pressing(); // reverse toggle
 
-    // Base outtake depends on wings, but BOOST overrides to 100
+    // Toggle logic (exclusive modes)
+    if (l1 && !g_prevL1) {
+        g_intakeMode = (g_intakeMode == IntakeMode::INTAKE) ? IntakeMode::OFF : IntakeMode::INTAKE;
+        Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
+    }
+    g_prevL1 = l1;
+
+    if (l2 && !g_prevL2) {
+        g_intakeMode = (g_intakeMode == IntakeMode::SCORE) ? IntakeMode::OFF : IntakeMode::SCORE;
+        Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
+    }
+    g_prevL2 = l2;
+
+    if (r2 && !g_prevR2) {
+        g_intakeMode = (g_intakeMode == IntakeMode::REVERSE) ? IntakeMode::OFF : IntakeMode::REVERSE;
+        Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
+    }
+    g_prevR2 = r2;
+
+    // Outtake base depends on wings; BOOST forces 100
     const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;
     const int outtakeMag  = boost ? 100 : outtakeBase;
 
@@ -373,32 +387,43 @@ static void handleIntakeOuttake() {
     int intakePct = 0;
     double outtakeTarget = 0.0;
 
-    // Priority: R2 > L2 > L1
-    if (reverseAll) {
-        intakeDir     = -1;
-        intakePct     = boost ? 100 : kReversePct;
-        outtakeTarget = -outtakeMag;
-    } else if (scoreFwd) {
-        intakeDir     = +1;
-        intakePct     = boost ? 100 : kScoreIntakePct;
-        outtakeTarget = +outtakeMag;
-    } else if (intakeFwd) {
-        intakeDir     = +1;
-        intakePct     = boost ? 100 : kIntakePct;
-        outtakeTarget = 0.0; // intake-only
-    } else {
-        intakeDir     = 0;
-        intakePct     = 0;
-        outtakeTarget = 0.0;
+    switch (g_intakeMode) {
+        case IntakeMode::OFF:
+            intakeDir     = 0;
+            intakePct     = 0;
+            outtakeTarget = 0.0;
+            break;
+
+        case IntakeMode::INTAKE:
+            intakeDir     = +1;
+            intakePct     = boost ? 100 : kIntakePct;
+            outtakeTarget = 0.0; // intake-only
+            break;
+
+        case IntakeMode::SCORE:
+            intakeDir     = +1;
+            intakePct     = boost ? 100 : kScoreIntakePct;
+            outtakeTarget = +outtakeMag;
+            break;
+
+        case IntakeMode::REVERSE:
+            intakeDir     = -1;
+            intakePct     = boost ? 100 : kReversePct;
+            outtakeTarget = -outtakeMag;
+            break;
     }
 
-    // Manual control: sorter off while driving intakes/outtakes
-    setSorterEnabled(false);
+    // Disable sorter only while manual intake/outtake is active
+    if (g_intakeMode != IntakeMode::OFF) {
+        setSorterEnabled(false);
+    }
 
+    // Intake motor control (instant on/off based on toggle state)
     if (intakeDir > 0)      runIntake(intakePct);
     else if (intakeDir < 0) reverseIntake(intakePct);
     else                    stopIntake();
 
+    // Outtake smoothing toward target (also ramps down nicely when OFF)
     const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
     const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
     const double step = rate * kDt;
@@ -445,7 +470,6 @@ void usercontrol() {
         handleToggles(needsUpdate);
         handleIntakeOuttake();
 
-        // R1 continuous vibration while held
         handleR1ContinuousRumble();
 
         screenTick(needsUpdate);

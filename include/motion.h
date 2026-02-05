@@ -1,4 +1,3 @@
-// motion.h
 #ifndef MOTION_H
 #define MOTION_H
 

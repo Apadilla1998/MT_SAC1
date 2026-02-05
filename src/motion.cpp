@@ -1,9 +1,9 @@
-// motion.cpp
 #include "motion.h"
 #include "drive.h"
 #include "robot_config.h"
 #include "utils.h"
 #include "odom.h"
+#include "sensors.h"
 #include "vex.h"
 #include <algorithm>
 #include <cmath>
@@ -12,12 +12,6 @@ using namespace vex;
 
 static inline double rotDegToM(double deg) {
     return (deg * config::TRACKING_WHEEL_CIRCUMFERENCE_M) / 360.0;
-}
-
-static inline double norm360(double a) {
-    a = std::fmod(a, 360.0);
-    if (a < 0.0) a += 360.0;
-    return a;
 }
 
 double MotionController::wrap180(double a) {
@@ -31,7 +25,7 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 }
 
 MotionController::MotionController()
-    : distPID_(0.01, 0.00, 0.0), //distPID_(20, 0.00, 5.0),
+    : distPID_(10, 0.00, 0.0),
       headPID_(0.35, 0.002, 0.0015),
       turnPID_(0.35, 0.002, 0.0015)
 {
@@ -118,7 +112,7 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
         }
 
         if (stopLatch) {
-            const double currHead = inertial_sensor.heading(deg);
+            const double currHead = headingDeg();
             const double headErr = angleDiffDeg(holdHead, currHead);
 
             double w = headPID_.update(-headErr, dt);
@@ -164,7 +158,7 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
         vCmd += clampD(v - vCmd, -dvMax, dvMax);
         v = vCmd;
 
-        const double currHead = inertial_sensor.heading(deg);
+        const double currHead = headingDeg();
         const double headErr = angleDiffDeg(holdHead, currHead);
 
         double w = headPID_.update(-headErr, dt);
@@ -194,7 +188,7 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
 }
 
 void MotionController::drive(double distM, int timeoutMs, double maxSpeedPct) {
-    driveHeading(distM, timeoutMs, maxSpeedPct, inertial_sensor.heading(deg));
+    driveHeading(distM, timeoutMs, maxSpeedPct, headingDeg());
 }
 
 void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg) {
@@ -246,7 +240,7 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
         offDeg = clampD(offDeg, -maxOffDeg, +maxOffDeg);
 
         const double desiredHead = norm360(holdHead + offDeg);
-        const double currHead = inertial_sensor.heading(deg);
+        const double currHead = headingDeg();
         const double headErr = angleDiffDeg(desiredHead, currHead);
 
         double w = headPID_.update(-headErr, dt);
@@ -276,7 +270,7 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
 }
 
 void MotionController::driveCC(double distM, int timeoutMs, double maxSpeedPct) {
-    driveHeadingCC(distM, timeoutMs, maxSpeedPct, inertial_sensor.heading(deg));
+    driveHeadingCC(distM, timeoutMs, maxSpeedPct, headingDeg());
 }
 
 void MotionController::turnTo(double targetDeg, int timeoutMs) {
@@ -288,31 +282,25 @@ void MotionController::turnTo(double targetDeg, int timeoutMs) {
     timer t; t.reset();
     int settledMs = 0;
 
-    double prevHead = inertial_sensor.heading(deg);
-    double rateFilt = 0.0;
-    const double rateTau = 0.06;
-    const double alpha = dt / (rateTau + dt);
+    const double target = norm360(targetDeg);
     const double rateTol = 8.0;
 
     {
-        const double curr = inertial_sensor.heading(deg);
-        const double err0 = angleDiffDeg(targetDeg, curr);
+        const double curr = headingDeg();
+        const double err0 = angleDiffDeg(target, curr);
         turnPID_.resetBumpless(-err0, 0.0);
     }
 
     while (t.time(msec) < timeoutMs) {
-        const double curr = inertial_sensor.heading(deg);
-        const double err = angleDiffDeg(targetDeg, curr);
-
-        const double dHead = wrap180(curr - prevHead);
-        prevHead = curr;
-        const double rate = dHead / dt;
-        rateFilt += alpha * (rate - rateFilt);
+        const double curr = headingDeg();
+        const double err = angleDiffDeg(target, curr);
 
         const double turnOut = turnPID_.update(-err, dt);
         tankDrive(turnOut, -turnOut);
 
-        if (std::fabs(err) < 1.0 && std::fabs(rateFilt) < rateTol) {
+        const double rate_dps = yawRateDps();
+
+        if (std::fabs(err) < 1.0 && std::fabs(rate_dps) < rateTol) {
             settledMs += dtMs;
             if (settledMs >= 150) break;
         } else {
@@ -326,7 +314,7 @@ void MotionController::turnTo(double targetDeg, int timeoutMs) {
 }
 
 void MotionController::turnBy(double deltaDeg, int timeoutMs) {
-    const double startRot = inertial_sensor.rotation(vex::deg);
+    const double startRot = rotationDeg();
     const double targetRot = startRot + deltaDeg;
 
     timer t; t.reset();
@@ -335,42 +323,34 @@ void MotionController::turnBy(double deltaDeg, int timeoutMs) {
 
     turnPID_.setSetpoint(0.0);
 
-    double prevRot = inertial_sensor.rotation(vex::deg);
-    double rateFilt = 0.0;
-    const double rateTau = 0.06;
-    const double alpha = dt / (rateTau + dt);
-    const double rateTol = 8.0;
-
     {
-        const double err0 = targetRot - inertial_sensor.rotation(vex::deg);
+        const double err0 = targetRot - rotationDeg();
         turnPID_.resetBumpless(-err0, 0.0);
     }
 
+    const double rateTol = 8.0;
     int settledMs = 0;
 
-    while (t.time(vex::msec) < timeoutMs) {
-        const double rot = inertial_sensor.rotation(vex::deg);
+    while (t.time(msec) < timeoutMs) {
+        const double rot = rotationDeg();
         const double err = targetRot - rot;
-
-        const double dRot = rot - prevRot;
-        prevRot = rot;
-        const double rate = dRot / dt;
-        rateFilt += alpha * (rate - rateFilt);
 
         const double out = turnPID_.update(-err, dt);
         tankDrive(out, -out);
 
-        if (std::fabs(err) < 1.0 && std::fabs(rateFilt) < rateTol) {
+        const double rate_dps = yawRateDps();
+
+        if (std::fabs(err) < 1.0 && std::fabs(rate_dps) < rateTol) {
             settledMs += dtMs;
             if (settledMs >= 150) break;
         } else {
             settledMs = 0;
         }
 
-        wait(dtMs, vex::msec);
+        wait(dtMs, msec);
     }
 
-    stopDrive(vex::brake);
+    stopDrive(brake);
 }
 
 void MotionController::autoCorrect(double targetX, double targetY, double targetHeadingDeg,
@@ -405,7 +385,7 @@ void MotionController::autoCorrect(double targetX, double targetY, double target
 
         double distNow = std::hypot(dx, dy);
 
-        double currHead = inertial_sensor.heading(vex::deg);
+        double currHead = headingDeg();
         double headErrAbs = std::fabs(angleDiffDeg(targetHeadingDeg, currHead));
 
         if (distNow < EXIT_DIST && headErrAbs < EXIT_ANG) break;
@@ -478,7 +458,7 @@ void MotionController::autoCorrect(double targetX, double targetY, double target
         dy = targetY - robotPose.y;
         distNow = std::hypot(dx, dy);
 
-        currHead = inertial_sensor.heading(vex::deg);
+        currHead = headingDeg();
         headErrAbs = std::fabs(angleDiffDeg(targetHeadingDeg, currHead));
 
         if (distNow < EXIT_DIST && headErrAbs < EXIT_ANG) break;
@@ -493,7 +473,7 @@ void MotionController::driveAC(double distM, int timeoutMs, double maxSpeedPct,
     }
 
     Pose s = robotPose;
-    double holdHead = inertial_sensor.heading(vex::deg);
+    double holdHead = headingDeg();
 
     drive(distM, timeoutMs, maxSpeedPct);
 
@@ -544,7 +524,7 @@ void MotionController::turnByAC(double deltaDeg, int timeoutMs,
     }
 
     Pose s = robotPose;
-    double startHead = inertial_sensor.heading(vex::deg);
+    double startHead = headingDeg();
     double targetHead = norm360(startHead + deltaDeg);
 
     turnBy(deltaDeg, timeoutMs);
