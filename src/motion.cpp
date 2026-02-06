@@ -1,3 +1,4 @@
+// motion.cpp
 #include "motion.h"
 #include "drive.h"
 #include "robot_config.h"
@@ -53,7 +54,7 @@ MotionController::MotionController()
 }
 
 void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg) {
-    const double startM = rotDegToM(verticalRot.position(deg));
+    const double startM   = rotDegToM(verticalRot.position(deg));
     const double holdHead = norm360(holdHeadingDeg);
 
     distPID_.setSetpoint(distM);
@@ -62,36 +63,50 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
     headPID_.setSetpoint(0.0);
     headPID_.resetBumpless(0.0, 0.0);
 
-    const int dtMs = 10;
-    const double dt = dtMs / 1000.0;
+    const int    dtMs = 10;
+    const double dt   = dtMs / 1000.0;
 
     timer t; t.reset();
-    int settledMs = 0;
+    int settledMs  = 0;
     int stopHoldMs = 0;
 
-    const double minCap = 10.0;
+    const double minCap   = 10.0;
     const double stopBand = 0.010;
 
-    const double stopEnter = 0.030;
-    const double stopExit  = 0.055;
-    const int stopSettleMs = 120;
+    const double stopEnter    = 0.030;
+    const double stopExit     = 0.055;
+    const int    stopSettleMs = 120;
 
-    bool stopLatch = false;
+    bool   stopLatch   = false;
     double distErrPrev = distM;
-    bool crossed = false;
+    bool   crossed     = false;
 
     double vCmd = 0.0;
     const double dvPerSec = 350.0;
-    const double dvMax = dvPerSec * dt;
+    const double dvMax    = dvPerSec * dt;
 
     double wCmd = 0.0;
     const double dwPerSec = 260.0;
-    const double dwMax = dwPerSec * dt;
+    const double dwMax    = dwPerSec * dt;
+
+    // Stiction compensation helper (prevents tiny PID outputs from hunting)
+    auto minMovePctForErr = [&](double eAbs) -> double {
+        const double start = 0.12;     // start helping inside 12cm
+        const double end   = stopBand; // stop helping inside stopBand
+        const double far   = 14.0;     // min % at 12cm
+        const double near  = 6.0;      // min % near stopBand
+
+        if (eAbs <= end)   return 0.0;
+        if (eAbs >= start) return far;
+
+        double u = (eAbs - end) / (start - end); // 0..1
+        return near + (far - near) * u;
+    };
 
     while (t.time(msec) < timeoutMs) {
-        const double currM = rotDegToM(verticalRot.position(deg));
-        const double traveled = currM - startM;
-        const double distErr = distM - traveled;
+        const double currM     = rotDegToM(verticalRot.position(deg));
+        const double traveled  = currM - startM;
+        const double distErr   = distM - traveled;
 
         if ((distErrPrev > 0.0 && distErr < 0.0) || (distErrPrev < 0.0 && distErr > 0.0)) crossed = true;
         distErrPrev = distErr;
@@ -105,7 +120,8 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
                 distPID_.resetBumpless(traveled, 0.0);
             }
         } else {
-            if (std::fabs(distErr) > stopExit) {
+            // CHANGED: prevent unlatching due to tiny encoder noise near the end
+            if (std::fabs(distErr) > 0.12) {
                 stopLatch = false;
                 stopHoldMs = 0;
             }
@@ -113,7 +129,7 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
 
         if (stopLatch) {
             const double currHead = headingDeg();
-            const double headErr = angleDiffDeg(holdHead, currHead);
+            const double headErr  = angleDiffDeg(holdHead, currHead);
 
             double w = headPID_.update(-headErr, dt);
 
@@ -155,18 +171,24 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
             v = 0.0;
         }
 
+        // CHANGED: stiction compensation to prevent end “hunting”
+        const double eAbs   = std::fabs(distErr);
+        const double minMov = minMovePctForErr(eAbs);
+        if (!crossed && minMov > 0.0 && std::fabs(v) < minMov) {
+            v = (distErr > 0.0) ? minMov : -minMov;
+        }
+
         vCmd += clampD(v - vCmd, -dvMax, dvMax);
         v = vCmd;
 
         const double currHead = headingDeg();
-        const double headErr = angleDiffDeg(holdHead, currHead);
+        const double headErr  = angleDiffDeg(holdHead, currHead);
 
         double w = headPID_.update(-headErr, dt);
 
-        const double vAbs = std::fabs(v);
-        double wScale = std::min(1.0, vAbs / 18.0);
-        wScale = std::max(wScale, 0.25);
-        if (vAbs < 12.0 && std::fabs(headErr) > 2.0) wScale = std::max(wScale, 0.22);
+        // CHANGED: fade heading correction to zero as speed approaches zero (prevents end wiggle)
+        const double vAbs   = std::fabs(v);
+        const double wScale = clampD(vAbs / 25.0, 0.0, 1.0);
         w *= wScale;
 
         wCmd += clampD(w - wCmd, -dwMax, dwMax);
@@ -245,10 +267,9 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
 
         double w = headPID_.update(-headErr, dt);
 
-        const double vAbs = std::fabs(v);
-        double wScale = std::min(1.0, vAbs / 18.0);
-        wScale = std::max(wScale, 0.25);
-        if (vAbs < 12.0 && std::fabs(headErr) > 2.0) wScale = std::max(wScale, 0.22);
+        // CHANGED: fade heading correction near zero speed to avoid end wiggle
+        const double vAbs   = std::fabs(v);
+        const double wScale = clampD(vAbs / 25.0, 0.0, 1.0);
         w *= wScale;
 
         vCmd += clampD(v - vCmd, -dvMax, dvMax);

@@ -5,17 +5,13 @@
 
 using namespace vex;
 
-// =====================================================
 // Globals (declared in subsystems.h)
-// =====================================================
 Alliance myAlliance = BLUE;
 Wings wings;
 
 volatile bool g_sorterEnabled = false;
 
-// =====================================================
 // Internal state (tracks *requested* commands)
-// =====================================================
 static volatile bool   g_sorterOverrideActive = false;
 
 static volatile int    g_intakeDir = 0;
@@ -24,11 +20,9 @@ static volatile double g_intakePct = 0.0;
 static volatile int    g_outakeDir = 0;
 static volatile double g_outakePct = 0.0;
 
-// =====================================================
 // Tunables
-// =====================================================
-static constexpr int kLoopMs = 10;
-static constexpr int kHueBufN = 5;
+static constexpr int kLoopMs = 10; // how often you sample: kLoopsMS * KConfrim Samples for window
+static constexpr int kHueBufN = 8; //decrease for faster reaction min 5
 
 // Hue thresholds (keep fairly wide)
 static constexpr double kRedLowMax  = 30.0;
@@ -37,22 +31,20 @@ static constexpr double kBlueMin    = 180.0;
 static constexpr double kBlueMax    = 270.0;
 
 // FAST decision window
-static constexpr int kConfirmSamples = 4;
+static constexpr int kConfirmSamples = 9; //incrase for fewer wrong rejects
 
 // Reject timings
-static constexpr int kRejectMs   = 250;
-static constexpr int kCooldownMs = 100;
+static constexpr int kRejectMs   = 280; //how long you spit it out
+static constexpr int kCooldownMs = 50; //how long you wait before sorting
 
 // Reject motor strengths
 static constexpr int kRejectColorIntakePct = 100;
 
 // If reject goes the wrong way, flip this dir between -1 and +1
-static constexpr int kRejectOuttakePct = 90;
+static constexpr int kRejectOuttakePct = 20;
 static constexpr int kRejectOuttakeDir = -1; // -1 = reverse, +1 = forward
 
-// =====================================================
 // Public API
-// =====================================================
 void setSorterEnabled(bool enabled) { g_sorterEnabled = enabled; }
 
 void Wings::toggle() { state = !state; wingsPiston.set(state); }
@@ -127,9 +119,7 @@ void runIntakeAuto(double speedPct) { setSorterEnabled(true);  runIntake(speedPc
 void reverseIntakeAuto(double speedPct) { setSorterEnabled(false); reverseIntake(speedPct); }
 void stopIntakeAuto() { stopIntake(); setSorterEnabled(false); }
 
-// =====================================================
 // Internal helpers
-// =====================================================
 enum class BallColor { RED, BLUE, UNKNOWN };
 
 static BallColor classifyHue(double hue) {
@@ -190,9 +180,26 @@ static void restoreOuttakeFromRequested() {
     }
 }
 
+// CHANGED: helper to keep MainIntake forward during reject
+static void keepMainIntakeForwardDuringReject() {
+    const double pctReq = g_intakePct;
+    if (pctReq > 0.0 && g_intakeDir != 0) {
+        // Always forward during reject (per your request)
+        MainIntake.spin(fwd, pctReq, pct);
+    } else {
+        MainIntake.stop(coast);
+    }
+}
+
+// CHANGED: don’t stop MainIntake here anymore
 static void beginRejectOverride() {
     g_sorterOverrideActive = true;
-    MainIntake.stop(coast);
+
+    // Keep main intake pulling forward
+    keepMainIntakeForwardDuringReject();
+
+    // Only stop these so the reject logic fully owns them
+    ColorIntake.stop(coast);
     Outtake.stop(coast);
 }
 
@@ -209,13 +216,11 @@ static void endSorterOverride() {
 static void runRejectMotors() {
     ColorIntake.spin(reverse, kRejectColorIntakePct, pct);
 
-    if (kRejectOuttakeDir < 0) Outtake.spin(reverse, kRejectOuttakePct, pct);
-    else                       Outtake.spin(fwd,     kRejectOuttakePct, pct);
+    // if (kRejectOuttakeDir < 0) Outtake.spin(reverse, kRejectOuttakePct, pct);
+    // else                       Outtake.spin(fwd,     kRejectOuttakePct, pct);
 }
 
-// =====================================================
 // Sorter task
-// =====================================================
 int intakeTaskFn() {
     ballSensor.setLightPower(100, percent);
 
@@ -279,7 +284,15 @@ int intakeTaskFn() {
 
         beginRejectOverride();
         runRejectMotors();
-        wait(kRejectMs, msec);
+
+        // CHANGED: during the reject window, keep MainIntake pulling forward
+        int tMs = 0;
+        while (tMs < kRejectMs) {
+            keepMainIntakeForwardDuringReject();
+            wait(kLoopMs, msec);
+            tMs += kLoopMs;
+        }
+
         endSorterOverride();
 
         redCount = 0;
