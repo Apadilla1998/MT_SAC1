@@ -36,33 +36,61 @@ static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs)
     stopDrive(brake);
 }
 
+static void HardCodedRightSkills(){
+
+}
+
 static void HardCodedRight() {
     MotionController m;
-    m.setAutoCorrectEnabled(false);
-
-    m.turnTo(90, 6000);
+    m.setAutoCorrectEnabled(true);
+    setSorterEnabled(true);
+    
+    driveDistanceByMotors(-30, 20, 7000);
+    wait(10, msec);
+    m.turnTo(90, 3000);
     wait(10, msec);
 
-    // driveDistanceByMotors(-42.2, 12, 7000);
+    ballLoader.toggles();
+    wait(1, sec); 
 
-    // m.turnTo(-50.0, 5000);
-    // wait(10, msec);
-    // driveDistanceByMotors(-6.5, 12, 7000);
+    runIntake(100);
+    wait(10, msec);
+    driveDistanceByMotors(-7, 20, 7000);
+    wait(900, msec);
+
+    driveDistanceByMotors(4, 17, 7000);
+    driveDistanceByMotors(-4, 15, 7000);
+    wait(900, msec);
+    driveDistanceByMotors(4, 17, 7000);
+    driveDistanceByMotors(-4, 15, 7000);
+    wait(900, msec);
+
+    stopIntake();
+    wait(10, msec);
+
+    driveDistanceByMotors(5, 15, 7000);
+    ballLoader.toggles();
+    wait(10, msec);
+
+    m.turnBy(138, 6000);
+    wait(10, msec);
+
+    driveDistanceByMotors(-40.5, 20, 7000);
+    wait(10, msec);
+
+
+    // ballLoader.toggles();
+    // wait(1, sec);
+    // driveDistanceByMotors(-1.75, 15, 7000);
     // wait(10, msec);
 
-    // reverseIntake(25);
-    // reverseOutake(25);
-    // wait(3, sec);
+    reverseIntake(60);
+    reverseOutake(60);
+    wait(5, sec);
 
-    // stopIntake();
-    // stopOutake();
-    // wait(10, msec);
-
-    // driveDistanceByMotors(7, 12, 7000);
-    // wait(10, msec);
-
-    // m.turnTo(70, 5000);
-    // wait(10, msec);
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
 }
 
 static void SimpleAutonRight() {
@@ -210,7 +238,7 @@ void runAutonomous() {
         case AutonRoutine::AUTO_CORRECT_RED_LEFT: autoCorrectRedLeft(); break;
         case AutonRoutine::SIMPLE_AUTON_LEFT: SimpleAutonLeft(); break;
         case AutonRoutine::SIMPLE_AUTON_RIGHT: SimpleAutonRight(); break;
-        case AutonRoutine::SKILLS: break;
+        case AutonRoutine::SKILLS: HardCodedRightSkills(); break;
         case AutonRoutine::HARD_CODED_RIGHT: HardCodedRight(); break;
         default: break;
     }

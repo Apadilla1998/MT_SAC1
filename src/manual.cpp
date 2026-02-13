@@ -26,7 +26,6 @@ static constexpr double kDriveDecelPctPerS = 950.0;
 static constexpr double kDt               = 0.025;
 
 static constexpr double kDriveScaleFast = 0.60;
-
 static constexpr double kTurnScaleFast  = 0.45;
 static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
@@ -39,7 +38,7 @@ static constexpr int    kDriveUnlockJoyThreshPct = 8;
 static constexpr int kIntakePct            = 50;
 static constexpr int kScoreIntakePct       = 50;
 static constexpr int kOuttakeFeedPct       = 15;
-static constexpr int kReversePct           = 25; //for skills reduce to 25 default 40
+static constexpr int kReversePct           = 100; //for skills reduce to 25 default 40
 static constexpr int boost_NUMER           = 100;
 
 // While holding R1, drivetrain max output becomes 70%
@@ -68,7 +67,8 @@ static bool g_driveLocked = false;
 static bool g_forceScreenUpdate = false;
 
 // Drive inversion toggle (Down button)
-static bool g_driveInverted = false;
+//static bool g_driveInverted = false;
+static bool g_ballLoader = false;
 
 // R1 continuous rumble timer
 static int g_r1RumbleTimerMs = 0;
@@ -114,7 +114,7 @@ static inline void normalizeArcade(double& leftPct, double& rightPct) {
 
 static inline double readForwardAxisPct() {
     double v = Controller1.Axis3.position(pct);
-    return g_driveInverted ? -v : v;
+    return v;
 }
 
 static inline double readTurnAxisPct() {
@@ -167,8 +167,8 @@ static void updateControllerScreen() {
 
     if (!g_showOdom) {
         Controller1.Screen.setCursor(1, 1);
-        if (g_driveLocked) Controller1.Screen.print("SPEED:%s%s LOCK", g_isFast ? "FAST" : "SLOW", g_driveInverted ? " INV" : "");
-        else              Controller1.Screen.print("SPEED:%s%s",       g_isFast ? "FAST" : "SLOW", g_driveInverted ? " INV" : "");
+        if (g_driveLocked) Controller1.Screen.print("SPEED:%s B:%sLCK", g_isFast ? "FAST" : "SLOW", ballLoader.isExtended() ? " UP" : " Dn ");
+        else              Controller1.Screen.print("SPEED:%s B:%s",       g_isFast ? "FAST" : "SLOW", ballLoader.isExtended() ? " UP" : " Dn");
 
         Controller1.Screen.setCursor(2, 1);
         Controller1.Screen.print("W:%s SORT:%s A:%s",
@@ -368,11 +368,11 @@ static void handleToggles(bool& needsUpdate) {
     }
     g_prevB = b;
 
-    // Down toggles inverted drive controls
+
+    // Down toggles ballLoader toggle
     const bool down = Controller1.ButtonDown.pressing();
     if (down && !g_prevDown) {
-        g_driveInverted = !g_driveInverted;
-        Controller1.rumble(g_driveInverted ? ".." : "--");
+        ballLoader.toggles();
         needsUpdate = true;
     }
     g_prevDown = down;
@@ -388,15 +388,15 @@ static void handleIntakeOuttake() {
     // L1 toggle logic (only INTAKE <-> OFF)
     if (l1 && !g_prevL1) {
         g_intakeMode = (g_intakeMode == IntakeMode::INTAKE) ? IntakeMode::OFF : IntakeMode::INTAKE;
-        Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
+        //Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
     }
     g_prevL1 = l1;
   
     // Optional: feedback on press for momentary buttons (no toggling)
-    if (l2 && !g_prevL2) Controller1.rumble(".");
-    if (r2 && !g_prevR2) Controller1.rumble(".");
-    g_prevL2 = l2;
-    g_prevR2 = r2;
+    // if (l2 && !g_prevL2) Controller1.rumble(".");
+    // if (r2 && !g_prevR2) Controller1.rumble(".");
+    // g_prevL2 = l2;
+    // g_prevR2 = r2;
 
     // Outtake base depends on wings; BOOST forces 100
     const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;

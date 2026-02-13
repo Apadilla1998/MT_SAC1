@@ -25,7 +25,9 @@ motor OuttakeB(PORT5, ratio6_1, false);
 motor OuttakeC(PORT16, ratio6_1, false);
 motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
 
-digital_out wingsPiston(Brain.ThreeWirePort.B);
+digital_out wingsPiston(Brain.ThreeWirePort.A);
+digital_out loader(Brain.ThreeWirePort.B);
+
 inertial inertial_sensor(PORT21);
 
 rotation verticalRot(PORT7, false); //was true

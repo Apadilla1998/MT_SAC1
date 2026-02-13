@@ -26,6 +26,7 @@ extern vex::motor_group Outtake;
 
 
 extern vex::digital_out wingsPiston;
+extern vex::digital_out loader;
 extern vex::inertial inertial_sensor;
 
 extern vex::rotation verticalRot;

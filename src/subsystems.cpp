@@ -8,6 +8,7 @@ using namespace vex;
 // Globals (declared in subsystems.h)
 Alliance myAlliance = BLUE;
 Wings wings;
+BallLoader ballLoader;
 
 volatile bool g_sorterEnabled = false;
 
@@ -21,21 +22,26 @@ static volatile int    g_outakeDir = 0;
 static volatile double g_outakePct = 0.0;
 
 // Tunables
-static constexpr int kLoopMs = 10; // how often you sample: kLoopsMS * KConfrim Samples for window
-static constexpr int kHueBufN = 8; //decrease for faster reaction min 5
+static constexpr int kLoopMs = 5; // how often you sample: kLoopsMS * KConfrim Samples for window
+static constexpr int kHueBufN = 5; //decrease for faster reaction min 5
 
 // Hue thresholds (keep fairly wide)
 static constexpr double kRedLowMax  = 30.0;
-static constexpr double kRedHighMin = 330.0;
+static constexpr double kRedHighMin = 365.0;
 static constexpr double kBlueMin    = 180.0;
 static constexpr double kBlueMax    = 270.0;
 
+// static constexpr double kRedLowMax  = 10.0;
+// static constexpr double kRedHighMin = 365.0;
+// static constexpr double kBlueMin    = 220.0;
+// static constexpr double kBlueMax    = 245.0;
+
 // FAST decision window
-static constexpr int kConfirmSamples = 9; //incrase for fewer wrong rejects
+static constexpr int kConfirmSamples = 10; //incrase for fewer wrong rejects
 
 // Reject timings
 static constexpr int kRejectMs   = 280; //how long you spit it out
-static constexpr int kCooldownMs = 50; //how long you wait before sorting
+static constexpr int kCooldownMs = 40; //how long you wait before sorting
 
 // Reject motor strengths
 static constexpr int kRejectColorIntakePct = 100;
@@ -48,7 +54,13 @@ static constexpr int kRejectOuttakeDir = -1; // -1 = reverse, +1 = forward
 void setSorterEnabled(bool enabled) { g_sorterEnabled = enabled; }
 
 void Wings::toggle() { state = !state; wingsPiston.set(state); }
-void Wings::set(bool s) { state = s; wingsPiston.set(state); }
+void Wings::set(bool s) { state = s; wingsPiston.set(state);}
+
+void BallLoader::toggles() {state = !state; loader.set(state); }
+void BallLoader::sets(bool s){ state = s; loader.set(state); }
+
+
+
 
 // -------------------- Intake --------------------
 void runIntake(double speedPct) {

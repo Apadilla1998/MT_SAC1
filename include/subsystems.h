@@ -16,7 +16,17 @@ private:
     bool state = false;
 };
 
+class BallLoader {
+public:
+    void toggles();
+    void sets(bool s);
+    bool isExtended() const { return state; }
+private:
+    bool state = false;
+};
+
 extern Wings wings;
+extern BallLoader ballLoader;
 
 extern volatile bool g_sorterEnabled;
 void setSorterEnabled(bool enabled);
