@@ -29,18 +29,11 @@ inline double headingDeg() {
 }
 
 inline double rotationDeg() {
-    return -inertial_sensor.rotation(deg); //was negative
-}
-
-inline double yawRateDps() {
-    return -inertial_sensor.gyroRate(zaxis, dps); //was negative
+    return inertial_sensor.rotation(deg); //was negative
 }
 
 inline double verticalDeg()   { return verticalRot.position(deg); }
 inline double horizontalDeg() { return horizontalRot.position(deg); }
 
-inline double ax_g() { return inertial_sensor.acceleration(xaxis); }
-inline double ay_g() { return -inertial_sensor.acceleration(yaxis); } //was negative
-inline double az_g() { return -inertial_sensor.acceleration(zaxis); } //was negative
 
 #endif

@@ -19,7 +19,11 @@ motor_group RightMotorGroup(RightA, RightB, RightC);
 motor MainIntake(PORT20, ratio6_1, false);
 motor ColorIntake(PORT19, ratio6_1, false);
 
-motor Outtake(PORT11, ratio6_1, false);
+
+motor OuttakeA(PORT11, ratio6_1, false);
+motor OuttakeB(PORT5, ratio6_1, false);
+motor OuttakeC(PORT16, ratio6_1, false);
+motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
 
 digital_out wingsPiston(Brain.ThreeWirePort.B);
 inertial inertial_sensor(PORT21);

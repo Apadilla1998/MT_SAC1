@@ -9,7 +9,7 @@
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT;
+AutonRoutine selectedAuton = AutonRoutine::HARD_CODED_RIGHT;
 
 static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs) {
     const double wheelDiamIn = 3.25;
@@ -37,31 +37,32 @@ static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs)
 }
 
 static void HardCodedRight() {
-    inertial_sensor.setRotation(0, deg);
-
     MotionController m;
     m.setAutoCorrectEnabled(false);
 
-    driveDistanceByMotors(-42.2, 12, 7000);
-
-    m.turnTo(-50.0, 5000);
-    wait(10, msec);
-    driveDistanceByMotors(-6.5, 12, 7000);
+    m.turnTo(90, 6000);
     wait(10, msec);
 
-    reverseIntake(25);
-    reverseOutake(25);
-    wait(3, sec);
+    // driveDistanceByMotors(-42.2, 12, 7000);
 
-    stopIntake();
-    stopOutake();
-    wait(10, msec);
+    // m.turnTo(-50.0, 5000);
+    // wait(10, msec);
+    // driveDistanceByMotors(-6.5, 12, 7000);
+    // wait(10, msec);
 
-    driveDistanceByMotors(7, 12, 7000);
-    wait(10, msec);
+    // reverseIntake(25);
+    // reverseOutake(25);
+    // wait(3, sec);
 
-    m.turnTo(70, 5000);
-    wait(10, msec);
+    // stopIntake();
+    // stopOutake();
+    // wait(10, msec);
+
+    // driveDistanceByMotors(7, 12, 7000);
+    // wait(10, msec);
+
+    // m.turnTo(70, 5000);
+    // wait(10, msec);
 }
 
 static void SimpleAutonRight() {

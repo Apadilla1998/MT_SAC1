@@ -19,7 +19,11 @@ extern vex::motor_group RightMotorGroup;
 extern vex::motor MainIntake;
 extern vex::motor ColorIntake;
 
-extern vex::motor Outtake;
+extern vex::motor OuttakeA;
+extern vex::motor OuttakeB;
+extern vex::motor OuttakeC;
+extern vex::motor_group Outtake;
+
 
 extern vex::digital_out wingsPiston;
 extern vex::inertial inertial_sensor;

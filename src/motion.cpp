@@ -27,8 +27,8 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 
 MotionController::MotionController()
     : distPID_(10, 0.00, 0.0),
-      headPID_(0.35, 0.002, 0.0015),
-      turnPID_(0.35, 0.002, 0.0015)
+      headPID_(0.01, 0.00, 0.00),
+      turnPID_(0.01, 0.00, 0.00)
 {
     distPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
     distPID_.setDerivativeFilterTf(0.18);
@@ -89,17 +89,16 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
     const double dwPerSec = 260.0;
     const double dwMax    = dwPerSec * dt;
 
-    // Stiction compensation helper (prevents tiny PID outputs from hunting)
     auto minMovePctForErr = [&](double eAbs) -> double {
-        const double start = 0.12;     // start helping inside 12cm
-        const double end   = stopBand; // stop helping inside stopBand
-        const double far   = 14.0;     // min % at 12cm
-        const double near  = 6.0;      // min % near stopBand
+        const double start = 0.12;
+        const double end   = stopBand;
+        const double far   = 14.0;
+        const double near  = 6.0;
 
         if (eAbs <= end)   return 0.0;
         if (eAbs >= start) return far;
 
-        double u = (eAbs - end) / (start - end); // 0..1
+        double u = (eAbs - end) / (start - end);
         return near + (far - near) * u;
     };
 
@@ -120,7 +119,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
                 distPID_.resetBumpless(traveled, 0.0);
             }
         } else {
-            // CHANGED: prevent unlatching due to tiny encoder noise near the end
             if (std::fabs(distErr) > 0.12) {
                 stopLatch = false;
                 stopHoldMs = 0;
@@ -171,7 +169,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
             v = 0.0;
         }
 
-        // CHANGED: stiction compensation to prevent end “hunting”
         const double eAbs   = std::fabs(distErr);
         const double minMov = minMovePctForErr(eAbs);
         if (!crossed && minMov > 0.0 && std::fabs(v) < minMov) {
@@ -186,7 +183,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
 
         double w = headPID_.update(-headErr, dt);
 
-        // CHANGED: fade heading correction to zero as speed approaches zero (prevents end wiggle)
         const double vAbs   = std::fabs(v);
         const double wScale = clampD(vAbs / 25.0, 0.0, 1.0);
         w *= wScale;
@@ -267,7 +263,6 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
 
         double w = headPID_.update(-headErr, dt);
 
-        // CHANGED: fade heading correction near zero speed to avoid end wiggle
         const double vAbs   = std::fabs(v);
         const double wScale = clampD(vAbs / 25.0, 0.0, 1.0);
         w *= wScale;
@@ -294,40 +289,66 @@ void MotionController::driveCC(double distM, int timeoutMs, double maxSpeedPct) 
     driveHeadingCC(distM, timeoutMs, maxSpeedPct, headingDeg());
 }
 
-void MotionController::turnTo(double targetDeg, int timeoutMs) {
-    turnPID_.setSetpoint(0.0);
+// ===================== TURN (slower + no oscillation, no yawRateDps wrapper) =====================
 
-    const int dtMs = 10;
-    const double dt = dtMs / 1000.0;
+void MotionController::turnTo(double targetDeg, int timeoutMs) {
+    const double target = norm360(targetDeg);
+
+    const int    dtMs = 10;
+    const double dt   = dtMs / 1000.0;
 
     timer t; t.reset();
-    int settledMs = 0;
 
-    const double target = norm360(targetDeg);
-    const double rateTol = 8.0;
+    // Tunables (slower)
+    const double kP = 0.55;     // reduced from 0.85
+    const double kD = 0.18;     // a bit more damping to stay smooth
+    const double maxOut = 35.0; // hard limit on turn speed (was 55)
 
-    {
-        const double curr = headingDeg();
-        const double err0 = angleDiffDeg(target, curr);
-        turnPID_.resetBumpless(-err0, 0.0);
-    }
+    const double stictionMin = 7.0; // reduced (was 9)
+    const double stictionErr = 7.0; // only kick when clearly far
+
+    const double doneErr     = 0.8;
+    const double doneRate    = 10.0;
+    const int    doneHoldMs  = 160;
+
+    // Slew limit (slower ramp)
+    double cmd = 0.0;
+    const double dCmdPerSec = 250.0; // reduced from 500
+    const double dCmdMax    = dCmdPerSec * dt;
+
+    int stableMs = 0;
 
     while (t.time(msec) < timeoutMs) {
         const double curr = headingDeg();
-        const double err = angleDiffDeg(target, curr);
+        const double err  = angleDiffDeg(target, curr);
+        const double eAbs = std::fabs(err);
 
-        const double turnOut = turnPID_.update(-err, dt);
-        tankDrive(turnOut, -turnOut);
+        // same sign behavior as your old yawRateDps()
+        const double rate_dps = -inertial_sensor.gyroRate(zaxis, dps);
 
-        const double rate_dps = yawRateDps();
-
-        if (std::fabs(err) < 1.0 && std::fabs(rate_dps) < rateTol) {
-            settledMs += dtMs;
-            if (settledMs >= 150) break;
+        if (eAbs < doneErr && std::fabs(rate_dps) < doneRate) {
+            stableMs += dtMs;
+            if (stableMs >= doneHoldMs) break;
         } else {
-            settledMs = 0;
+            stableMs = 0;
         }
 
+        // PD with rate damping
+        double out = (kP * err) - (kD * rate_dps);
+
+        // gentler cap growth (keeps it from blasting when far)
+        double cap = 8.0 + 1.2 * eAbs;
+        cap = clampD(cap, 10.0, maxOut);
+
+        if (eAbs > stictionErr && std::fabs(out) < stictionMin) {
+            out = (err > 0.0) ? +stictionMin : -stictionMin;
+        }
+
+        out = clampD(out, -cap, +cap);
+
+        cmd += clampD(out - cmd, -dCmdMax, +dCmdMax);
+
+        tankDrive(cmd, -cmd);
         wait(dtMs, msec);
     }
 
@@ -335,44 +356,11 @@ void MotionController::turnTo(double targetDeg, int timeoutMs) {
 }
 
 void MotionController::turnBy(double deltaDeg, int timeoutMs) {
-    const double startRot = rotationDeg();
-    const double targetRot = startRot + deltaDeg;
-
-    timer t; t.reset();
-    const int dtMs = 10;
-    const double dt = dtMs / 1000.0;
-
-    turnPID_.setSetpoint(0.0);
-
-    {
-        const double err0 = targetRot - rotationDeg();
-        turnPID_.resetBumpless(-err0, 0.0);
-    }
-
-    const double rateTol = 8.0;
-    int settledMs = 0;
-
-    while (t.time(msec) < timeoutMs) {
-        const double rot = rotationDeg();
-        const double err = targetRot - rot;
-
-        const double out = turnPID_.update(-err, dt);
-        tankDrive(out, -out);
-
-        const double rate_dps = yawRateDps();
-
-        if (std::fabs(err) < 1.0 && std::fabs(rate_dps) < rateTol) {
-            settledMs += dtMs;
-            if (settledMs >= 150) break;
-        } else {
-            settledMs = 0;
-        }
-
-        wait(dtMs, msec);
-    }
-
-    stopDrive(brake);
+    const double target = norm360(headingDeg() + deltaDeg);
+    turnTo(target, timeoutMs);
 }
+
+// ===================== AUTO-CORRECT / WRAPPERS =====================
 
 void MotionController::autoCorrect(double targetX, double targetY, double targetHeadingDeg,
                                    int timeoutMs, double maxSpeedPct) {
@@ -506,7 +494,7 @@ void MotionController::driveAC(double distM, int timeoutMs, double maxSpeedPct,
 }
 
 void MotionController::driveHeadingAC(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg,
-                                     int correctTimeoutMs, double correctSpeedPct) {
+                                      int correctTimeoutMs, double correctSpeedPct) {
     if (!autoCorrectEnabled_) {
         driveHeading(distM, timeoutMs, maxSpeedPct, holdHeadingDeg);
         return;
