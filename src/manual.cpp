@@ -27,33 +27,33 @@ static constexpr double kDt               = 0.025;
 
 static constexpr double kDriveScaleFast = 0.60;
 static constexpr double kTurnScaleFast  = 0.45;
-static constexpr double kTurnScaleSlow  = 0.20;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
 
 static constexpr int    kDeadbandPct = 0;
-
 static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
 static constexpr int kIntakePct            = 50;
 static constexpr int kScoreIntakePct       = 50;
-static constexpr int kOuttakeFeedPct       = 15;
-static constexpr int kReversePct           = 100; //for skills reduce to 25 default 40
+static constexpr int kReversePct           = 25;
 static constexpr int boost_NUMER           = 100;
 
-// While holding R1, drivetrain max output becomes 70%
-static constexpr double kDriveScaleR1 = 0.70;
-static constexpr double kTurnScaleR1  = 0.70;
+// R1 = 100% drivetrain override
+static constexpr double kDriveScaleR1 = 1.00;
+static constexpr double kTurnScaleR1  = 1.00;
 
 // State
 static double g_fwdCmd = 0.0;
 static double g_trnCmd = 0.0;
 static double g_outtakeCmd = 0.0;
 
-static bool g_prevR1 = false, g_prevUp = false, g_prevX = false, g_prevY = false;
-static bool g_prevB  = false, g_prevL1 = false, g_prevL2 = false, g_prevR2 = false;
+static bool g_prevUp = false, g_prevX = false, g_prevY = false;
+static bool g_prevB  = false, g_prevL1 = false;
 static bool g_prevDown = false;
-static bool g_prevA = false;
+
+// NEW: only for Left/Right press edge rumble
+static bool g_prevLeft = false;
+static bool g_prevRight = false;
 
 static bool g_isFast   = true;
 static bool g_showOdom = false;
@@ -62,22 +62,14 @@ static int  g_screenTimerMs = 0;
 static int  g_ballTimerMs   = 0;
 
 static bool g_driveStopped = true;
-
 static bool g_driveLocked = false;
 static bool g_forceScreenUpdate = false;
-
-// Drive inversion toggle (Down button)
-//static bool g_driveInverted = false;
-static bool g_ballLoader = false;
 
 // R1 continuous rumble timer
 static int g_r1RumbleTimerMs = 0;
 
 // Color sorting enable/disable (X toggle)
 static bool g_sorterEnabledUser = true;
-
-// NEW: A is HOLD (not toggle): while held => MainIntake fwd, ColorIntake+Outtake rev, sorter forced OFF
-static bool g_aHold = false;
 
 // Intake toggle mode
 enum class IntakeMode { OFF, INTAKE, SCORE, REVERSE };
@@ -113,13 +105,11 @@ static inline void normalizeArcade(double& leftPct, double& rightPct) {
 }
 
 static inline double readForwardAxisPct() {
-    double v = Controller1.Axis3.position(pct);
-    return v;
+    return Controller1.Axis3.position(pct);
 }
 
 static inline double readTurnAxisPct() {
-    double v = Controller1.Axis1.position(pct);
-    return v;
+    return Controller1.Axis1.position(pct);
 }
 
 // Driver screen
@@ -143,12 +133,16 @@ static void updateBallLine() {
     Controller1.Screen.clearLine(3);
     Controller1.Screen.setCursor(3, 1);
 
-    if (!ballSensor.isNearObject()) {
-        Controller1.Screen.print("BALL: NONE");
+    // Always read hue (even if no object is near)
+    const double hue = wrap360(filteredHueManual());
+    const bool near  = ballSensor.isNearObject();
+
+    if (!near) {
+        // Still show hue even when NONE
+        Controller1.Screen.print("BALL:NONE H:%5.1f", hue);
         return;
     }
 
-    const double hue = filteredHueManual();
     const bool isRed  = (hue < 20 || hue > 340);
     const bool isBlue = (hue > 200 && hue < 250);
     const char* c = isRed ? "RED" : (isBlue ? "BLUE" : "UNK");
@@ -160,6 +154,7 @@ static void updateBallLine() {
     Controller1.Screen.print("BALL:%s H:%5.1f %s", c, hue, isOpponent ? "OPP" : "ALLY");
 }
 
+
 static void updateControllerScreen() {
     Controller1.Screen.clearLine(1);
     Controller1.Screen.clearLine(2);
@@ -167,14 +162,14 @@ static void updateControllerScreen() {
 
     if (!g_showOdom) {
         Controller1.Screen.setCursor(1, 1);
-        if (g_driveLocked) Controller1.Screen.print("SPEED:%s B:%sLCK", g_isFast ? "FAST" : "SLOW", ballLoader.isExtended() ? " UP" : " Dn ");
-        else              Controller1.Screen.print("SPEED:%s B:%s",       g_isFast ? "FAST" : "SLOW", ballLoader.isExtended() ? " UP" : " Dn");
+        Controller1.Screen.print("LOCK:%s T:%s",
+            g_driveLocked ? "ON " : "OFF",
+            ballLoader.isExtended() ? "UP" : "DN");
 
         Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("W:%s SORT:%s A:%s",
-                                 wings.isExtended() ? "UP" : "DN",
-                                 g_sorterEnabledUser ? "ON" : "OFF",
-                                 g_aHold ? "HOLD" : "OFF");
+        Controller1.Screen.print("W:%s SORT:%s",
+            wings.isExtended() ? "UP" : "DN",
+            g_sorterEnabledUser ? "ON" : "OFF");
 
         updateBallLine();
     } else {
@@ -194,7 +189,7 @@ static void updateControllerScreen() {
 }
 
 static void screenTick(bool needsUpdate) {
-    g_screenTimerMs += 20;
+    g_screenTimerMs += 10;
     const int screenPeriodMs = g_showOdom ? 200 : 4000;
 
     if (needsUpdate || g_screenTimerMs >= screenPeriodMs) {
@@ -250,8 +245,7 @@ static void handleDrive() {
             std::fabs(rawTurn) > kDriveUnlockJoyThreshPct) {
             g_driveLocked = false;
             disengageDriveHold();
-            Controller1.rumble(".");
-            g_forceScreenUpdate = true;
+            g_forceScreenUpdate = true; // no rumble here
         } else {
             engageDriveHold();
             return;
@@ -275,7 +269,9 @@ static void handleDrive() {
 
     double fwdReq = fwdIn * driveScale;
     double trnReq = trnIn * turnScale;
-    trnReq = clampD(trnReq, -kTurnMaxPct, kTurnMaxPct);
+
+    const double turnMax = boostR1 ? 100.0 : kTurnMaxPct;
+    trnReq = clampD(trnReq, -turnMax, turnMax);
 
     if (neutralInput) {
         fwdReq = 0.0;
@@ -286,7 +282,7 @@ static void handleDrive() {
 
     const double fwdMag = std::fabs(g_fwdCmd);
     const double boost  = 1.0 + kTurnBoostAtFullFwd * (fwdMag / 100.0);
-    g_trnCmd = clampD(trnReq * boost, -kTurnMaxPct, kTurnMaxPct);
+    g_trnCmd = clampD(trnReq * boost, -turnMax, turnMax);
 
     double lRaw = (g_fwdCmd + g_trnCmd) * kLeftBias;
     double rRaw = (g_fwdCmd - g_trnCmd) * kRightBias;
@@ -313,6 +309,7 @@ static void handleDrive() {
 }
 
 static void handleToggles(bool& needsUpdate) {
+    // Up: Long Goal Piston toggle (no rumble)
     const bool up = Controller1.ButtonUp.pressing();
     if (up && !g_prevUp) {
         wings.toggle();
@@ -320,33 +317,17 @@ static void handleToggles(bool& needsUpdate) {
     }
     g_prevUp = up;
 
-    // X: toggle color sorting enable/disable
+    // X: toggle color sorting enable/disable (WITH rumble)
     const bool x = Controller1.ButtonX.pressing();
     if (x && !g_prevX) {
         g_sorterEnabledUser = !g_sorterEnabledUser;
-
-        // If A is being held, sorter is forced OFF no matter what X says.
-        setSorterEnabled(g_aHold ? false : g_sorterEnabledUser);
-
+        setSorterEnabled(g_sorterEnabledUser);
         Controller1.rumble(g_sorterEnabledUser ? "." : "-");
         needsUpdate = true;
     }
     g_prevX = x;
 
-    // A: HOLD behavior state (no toggle). While held => sorter forced OFF.
-    const bool a = Controller1.ButtonA.pressing();
-    if (a != g_prevA) {
-        g_aHold = a;
-
-        // immediate effect on sorter enable
-        setSorterEnabled(g_aHold ? false : g_sorterEnabledUser);
-
-        // optional feedback on press/release
-        Controller1.rumble(g_aHold ? ".." : "--");
-        needsUpdate = true;
-    }
-    g_prevA = a;
-
+    // Y: toggle odom screen (no rumble)
     const bool y = Controller1.ButtonY.pressing();
     if (y && !g_prevY) {
         g_showOdom = !g_showOdom;
@@ -354,6 +335,7 @@ static void handleToggles(bool& needsUpdate) {
     }
     g_prevY = y;
 
+    // B: drive lock toggle (WITH rumble)
     const bool b = Controller1.ButtonB.pressing();
     if (b && !g_prevB) {
         g_driveLocked = !g_driveLocked;
@@ -368,8 +350,7 @@ static void handleToggles(bool& needsUpdate) {
     }
     g_prevB = b;
 
-
-    // Down toggles ballLoader toggle
+    // Down: Tongue piston toggle (no rumble)
     const bool down = Controller1.ButtonDown.pressing();
     if (down && !g_prevDown) {
         ballLoader.toggles();
@@ -381,67 +362,20 @@ static void handleToggles(bool& needsUpdate) {
 static void handleIntakeOuttake() {
     const bool boost = Controller1.ButtonR1.pressing();
 
-    const bool l1 = Controller1.ButtonL1.pressing(); // ONLY toggle
-    const bool l2 = Controller1.ButtonL2.pressing(); // hold-to-score (NOT toggle)
-    const bool r2 = Controller1.ButtonR2.pressing(); // hold-to-reverse (NOT toggle)
+    const bool l1 = Controller1.ButtonL1.pressing(); // toggle intake
+    const bool l2 = Controller1.ButtonL2.pressing(); // hold outtake
+    const bool r2 = Controller1.ButtonR2.pressing(); // hold reverse
 
     // L1 toggle logic (only INTAKE <-> OFF)
     if (l1 && !g_prevL1) {
         g_intakeMode = (g_intakeMode == IntakeMode::INTAKE) ? IntakeMode::OFF : IntakeMode::INTAKE;
-        //Controller1.rumble((g_intakeMode == IntakeMode::OFF) ? "-" : ".");
     }
     g_prevL1 = l1;
-  
-    // Optional: feedback on press for momentary buttons (no toggling)
-    // if (l2 && !g_prevL2) Controller1.rumble(".");
-    // if (r2 && !g_prevR2) Controller1.rumble(".");
-    // g_prevL2 = l2;
-    // g_prevR2 = r2;
 
-    // Outtake base depends on wings; BOOST forces 100
     const int outtakeBase = wings.isExtended() ? kOuttakeWingsUpPct : kOuttakeNormalPct;
     const int outtakeMag  = boost ? 100 : outtakeBase;
 
-    // --- A HOLD split-eject override ---
-    if (g_aHold) {
-        // Hard force sorter OFF while A is held
-        setSorterEnabled(false);
-
-        const int intakeSpeedPct = boost ? 100 : kIntakePct;
-
-
-        // Main intake forward
-        MainIntake.spin(fwd, intakeSpeedPct, pct);
-
-        // Color intake reverse
-        ColorIntake.spin(reverse, intakeSpeedPct, pct);
-
-        Outtake.spin(reverse, intakeSpeedPct, pct);
-
-        // Outtake reverse with smoothing
-        // const double outtakeTarget = -(double)outtakeMag;
-
-        // const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
-        // const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
-        // const double step = rate * kDt;
-
-        // double delta = outtakeTarget - g_outtakeCmd;
-        // delta = clampD(delta, -step, step);
-        // g_outtakeCmd += delta;
-
-        // if (std::fabs(g_outtakeCmd) < 1.0) {
-        //     stopOutake();
-        //     g_outtakeCmd = 0.0;
-        // } else if (g_outtakeCmd > 0.0) {
-        //     runOutake((int)std::fabs(g_outtakeCmd));
-        // } else {
-        //     reverseOutake((int)std::fabs(g_outtakeCmd));
-        // }
-
-        return;
-    }
-
-    // Effective mode: momentary overrides toggle while held
+    // Momentary overrides
     IntakeMode mode = g_intakeMode;
     if (r2)      mode = IntakeMode::REVERSE;
     else if (l2) mode = IntakeMode::SCORE;
@@ -457,19 +391,19 @@ static void handleIntakeOuttake() {
             outtakeTarget = 0.0;
             break;
 
-        case IntakeMode::INTAKE:
+        case IntakeMode::INTAKE: // L1 toggle
             intakeDir     = +1;
             intakePct     = boost ? boost_NUMER : kIntakePct;
-            outtakeTarget = 0.0; // intake-only
+            outtakeTarget = 0.0; // keep main outtake off
             break;
 
-        case IntakeMode::SCORE:
+        case IntakeMode::SCORE:  // L2 hold
             intakeDir     = +1;
             intakePct     = boost ? boost_NUMER : kScoreIntakePct;
             outtakeTarget = +outtakeMag;
             break;
 
-        case IntakeMode::REVERSE:
+        case IntakeMode::REVERSE: // R2 hold
             intakeDir     = -1;
             intakePct     = boost ? boost_NUMER : kReversePct;
             outtakeTarget = -outtakeMag;
@@ -481,14 +415,14 @@ static void handleIntakeOuttake() {
         (mode != IntakeMode::OFF) &&
         (mode != IntakeMode::REVERSE);
 
-    setSorterEnabled(g_aHold ? false : sorterShouldRun);
+    setSorterEnabled(sorterShouldRun);
 
     // Intake motor control
     if (intakeDir > 0)      runIntake(intakePct);
     else if (intakeDir < 0) reverseIntake(intakePct);
     else                    stopIntake();
 
-    // Outtake smoothing toward target
+    // Main outtake smoothing toward target (runOutake/reverseOutake/stopOutake)
     const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
     const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
     const double step = rate * kDt;
@@ -505,12 +439,34 @@ static void handleIntakeOuttake() {
     } else {
         reverseOutake((int)std::fabs(g_outtakeCmd));
     }
+
+    if (mode == IntakeMode::INTAKE || mode == IntakeMode::SCORE) {
+        OuttakeA.spin(forward, intakePct, pct);
+    } else if(mode == IntakeMode::REVERSE){
+        OuttakeA.spin(reverse, (int)std::fabs(g_outtakeCmd), percent);
+    }
+    else{
+        OuttakeA.stop(coast);
+    }
 }
 
 static void handleDescore() {
-    if (Controller1.ButtonRight.pressing())      moveArmLeft(25);
-    else if (Controller1.ButtonLeft.pressing()) moveArmRight(25);
-    else                                        stopArm();
+    const bool boost = Controller1.ButtonR1.pressing();
+    const int  armPct = boost ? 100 : 25;
+
+    const bool left  = Controller1.ButtonLeft.pressing();
+    const bool right = Controller1.ButtonRight.pressing();
+
+    // Rumble ONLY on press edges for Left/Right
+    if (left && !g_prevLeft)   Controller1.rumble(".");
+    if (right && !g_prevRight) Controller1.rumble(".");
+
+    g_prevLeft  = left;
+    g_prevRight = right;
+
+    if (left)       moveArmLeft(armPct);
+    else if (right) moveArmRight(armPct);
+    else            stopArm();
 }
 
 void usercontrol() {
@@ -536,7 +492,6 @@ void usercontrol() {
         handleIntakeOuttake();
 
         handleR1ContinuousRumble();
-
         screenTick(needsUpdate);
 
         wait(20, msec);

@@ -27,7 +27,7 @@ static constexpr int kHueBufN = 5; //decrease for faster reaction min 5
 
 // Hue thresholds (keep fairly wide)
 static constexpr double kRedLowMax  = 30.0;
-static constexpr double kRedHighMin = 365.0;
+static constexpr double kRedHighMin = 340.0;
 static constexpr double kBlueMin    = 180.0;
 static constexpr double kBlueMax    = 270.0;
 
@@ -37,11 +37,13 @@ static constexpr double kBlueMax    = 270.0;
 // static constexpr double kBlueMax    = 245.0;
 
 // FAST decision window
-static constexpr int kConfirmSamples = 10; //incrase for fewer wrong rejects
+static constexpr int kConfirmSamples = 6; //incrase for fewer wrong rejects
 
 // Reject timings
 static constexpr int kRejectMs   = 280; //how long you spit it out
-static constexpr int kCooldownMs = 40; //how long you wait before sorting
+static constexpr int kCooldownMs = 10; //how long you wait before sorting
+
+//reverse motors down a bit when it detects the color for the main intake
 
 // Reject motor strengths
 static constexpr int kRejectColorIntakePct = 100;
@@ -227,6 +229,8 @@ static void endSorterOverride() {
 
 static void runRejectMotors() {
     ColorIntake.spin(reverse, kRejectColorIntakePct, pct);
+    
+    //OuttakeA.spin(reverse, kRejectColorIntakePct, pct);
 
     // if (kRejectOuttakeDir < 0) Outtake.spin(reverse, kRejectOuttakePct, pct);
     // else                       Outtake.spin(fwd,     kRejectOuttakePct, pct);

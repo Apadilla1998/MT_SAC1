@@ -32,7 +32,9 @@ extern vex::inertial inertial_sensor;
 extern vex::rotation verticalRot;
 extern vex::rotation horizontalRot;
 
+extern vex::vision AiSensor;
 extern vex::optical ballSensor;
+//extern vex::optical ballSensor2;
 
 extern vex::motor DescoreMotor;
 

@@ -35,6 +35,7 @@ rotation horizontalRot(PORT6, false);
 
 vision AiSensor(PORT12);
 optical ballSensor(PORT18);
+//optical ballSensor2(PORT14);
 
 motor DescoreMotor(PORT17, ratio36_1, true);
 
