@@ -20,9 +20,9 @@ motor MainIntake(PORT20, ratio6_1, false);
 motor ColorIntake(PORT19, ratio6_1, false);
 
 
-motor OuttakeA(PORT11, ratio6_1, false);
-motor OuttakeB(PORT5, ratio6_1, false);
-motor OuttakeC(PORT16, ratio6_1, false);
+motor OuttakeA(PORT11, ratio6_1, false); //this is the first one
+motor OuttakeB(PORT5, ratio6_1, false); //towards end
+motor OuttakeC(PORT16, ratio6_1, false); //this is the top one
 motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
 
 digital_out wingsPiston(Brain.ThreeWirePort.A);

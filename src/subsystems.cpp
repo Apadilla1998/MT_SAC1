@@ -73,6 +73,7 @@ void runIntake(double speedPct) {
 
     MainIntake.spin(fwd, speedPct, pct);
     ColorIntake.spin(fwd, speedPct, pct);
+    
 }
 
 void reverseIntake(double speedPct) {

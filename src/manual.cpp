@@ -33,8 +33,8 @@ static constexpr double kTurnBoostAtFullFwd = 0.25;
 static constexpr int    kDeadbandPct = 0;
 static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
-static constexpr int kIntakePct            = 50;
-static constexpr int kScoreIntakePct       = 50;
+static constexpr int kIntakePct            = 75;
+static constexpr int kScoreIntakePct       = 75;
 static constexpr int kReversePct           = 25;
 static constexpr int boost_NUMER           = 100;
 
@@ -153,7 +153,6 @@ static void updateBallLine() {
 
     Controller1.Screen.print("BALL:%s H:%5.1f %s", c, hue, isOpponent ? "OPP" : "ALLY");
 }
-
 
 static void updateControllerScreen() {
     Controller1.Screen.clearLine(1);
@@ -365,6 +364,7 @@ static void handleIntakeOuttake() {
     const bool l1 = Controller1.ButtonL1.pressing(); // toggle intake
     const bool l2 = Controller1.ButtonL2.pressing(); // hold outtake
     const bool r2 = Controller1.ButtonR2.pressing(); // hold reverse
+    const bool a  = Controller1.ButtonA.pressing();  // NEW: momentary override
 
     // L1 toggle logic (only INTAKE <-> OFF)
     if (l1 && !g_prevL1) {
@@ -410,19 +410,45 @@ static void handleIntakeOuttake() {
             break;
     }
 
+    // While holding A, turn sorting OFF (since we're manually reversing rollers)
     const bool sorterShouldRun =
         g_sorterEnabledUser &&
+        !a &&
         (mode != IntakeMode::OFF) &&
         (mode != IntakeMode::REVERSE);
 
     setSorterEnabled(sorterShouldRun);
 
+  
     // Intake motor control
-    if (intakeDir > 0)      runIntake(intakePct);
-    else if (intakeDir < 0) reverseIntake(intakePct);
-    else                    stopIntake();
 
-    // Main outtake smoothing toward target (runOutake/reverseOutake/stopOutake)
+    if (a) {
+        // If we're currently intaking/scoring, reuse that speed; otherwise default to intake speed.
+        const int aPct = (intakePct != 0) ? intakePct : (boost ? boost_NUMER : kIntakePct);
+
+        // mainIntake stays forward, colorIntake reverses
+        MainIntake.spin(forward, aPct, pct);
+        ColorIntake.spin(reverse, aPct, pct);
+    } else {
+        // Normal behavior
+        if (intakeDir > 0)      { runIntake(intakePct); }
+        else if (intakeDir < 0) reverseIntake(intakePct);
+        else                    stopIntake();
+    }
+
+    if (!a && mode == IntakeMode::INTAKE) {
+        OuttakeC.spin(reverse, 70, pct);
+        OuttakeB.stop(hold);
+        OuttakeA.spin(forward, 50, percent);
+    } else {
+        OuttakeC.stop(coast);
+        OuttakeB.stop(coast);
+        OuttakeC.stop(coast);
+    }
+
+  
+    // Main outtake smoothing (unchanged)
+if (mode != IntakeMode::INTAKE) {
     const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
     const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
     const double step = rate * kDt;
@@ -439,15 +465,17 @@ static void handleIntakeOuttake() {
     } else {
         reverseOutake((int)std::fabs(g_outtakeCmd));
     }
+} else {
+    // L1 toggled intake: you control B/C manually
+    g_outtakeCmd = 0.0;
+}
 
-    if (mode == IntakeMode::INTAKE || mode == IntakeMode::SCORE) {
-        OuttakeA.spin(forward, intakePct, pct);
-    } else if(mode == IntakeMode::REVERSE){
-        OuttakeA.spin(reverse, (int)std::fabs(g_outtakeCmd), percent);
-    }
-    else{
-        OuttakeA.stop(coast);
-    }
+  
+    // OuttakeA control
+
+  
+    // OuttakeB / OuttakeC when L1 is toggled (INTAKE mode)
+
 }
 
 static void handleDescore() {

@@ -9,7 +9,7 @@
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::HARD_CODED_MESSUP_RIGHT;
+AutonRoutine selectedAuton = AutonRoutine::HARD_CODED_MESSUP_RIGHT; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT
 
 static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs) {
     const double wheelDiamIn = 3.25;
@@ -37,6 +37,93 @@ static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs)
 }
 
 static void HardCodedRightSkills(){
+    MotionController m;
+    m.setAutoCorrectEnabled(true);
+    //setSorterEnabled(false);
+    
+    driveDistanceByMotors(-38, 24, 9000);
+    wait(10, msec);
+    m.turnTo(90, 3000);
+    wait(10, msec);
+
+    ballLoader.toggles();
+    wait(1, sec); 
+
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    wait(10, msec);
+
+    OuttakeC.spin(reverse, 70, pct);
+    OuttakeB.spin(forward, 25, percent);
+    wait(10, msec);
+    driveDistanceByMotors(-11.5, 20, 9000);
+    wait(900, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
+    wait(500, msec);
+
+    driveDistanceByMotors(1, 17, 5000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 5000);
+    wait(500, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
+    wait(900, msec);
+
+    driveDistanceByMotors(1, 17, 5000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 5000);
+    wait(500, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
+    wait(900, msec);
+
+    driveDistanceByMotors(1, 17, 5000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 5000);
+    wait(500, msec);
+
+    stopIntake();
+    OuttakeA.stop();
+    OuttakeB.stop();
+    OuttakeC.stop();
+    wait(10, msec);
+
+    wings.toggle();
+    reverseOutake(20);
+    reverseIntake(20);
+    wait(300, msec);
+
+
+    stopIntake();
+    stopOutake();
+    
+    driveDistanceByMotors(3, 20, 5000);
+    ballLoader.toggles();
+    wait(10, msec);
+
+    driveDistanceByMotors(29, 20, 7000);
+    ballLoader.toggles();
+    wait(10, msec);
+
+    runIntake(40);
+    runOutake(75);
+    wait(4, sec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    driveDistanceByMotors(-8, 20, 7000);
+    wings.toggle();
+    wait(10, msec);
+
 
 }
 
@@ -75,10 +162,10 @@ static void HardCodedRightMessUp(){
     driveDistanceByMotors(-2, 17, 7000); //was -6
     wait(500, msec);
 
-    driveDistanceByMotors(1, 17, 5000);
-    wait(10, msec);
-    driveDistanceByMotors(-2, 17, 5000);
-    wait(500, msec);
+    // driveDistanceByMotors(1, 17, 5000);
+    // wait(10, msec);
+    // driveDistanceByMotors(-2, 17, 5000);
+    // wait(500, msec);
 
     // driveDistanceByMotors(1, 17, 5000);
     // wait(10, msec);
@@ -89,7 +176,7 @@ static void HardCodedRightMessUp(){
     OuttakeA.stop();
     wait(10, msec);
 
-    driveDistanceByMotors(9, 15, 9000);
+    driveDistanceByMotors(13, 15, 9000);
     ballLoader.toggles();
     wait(10, msec);
 
@@ -129,11 +216,11 @@ static void HardCodedRightMessUp(){
     driveDistanceByMotors(13, 24, 9000);
     m.turnTo(90, 7000);
     wait(10, msec);
-    driveDistanceByMotors(30, 25, 9000);
+    driveDistanceByMotors(26, 25, 9000);
     wait(10, msec);
 
     m.turnTo(43, 6000);
-    driveDistanceByMotors(7, 17, 7000);
+    driveDistanceByMotors(11, 17, 7000);
     wait(10, msec);
 
     RightMotorGroup.stop(hold);
@@ -146,7 +233,7 @@ static void HardCodedRight() {
     m.setAutoCorrectEnabled(true);
     setSorterEnabled(true);
     
-    driveDistanceByMotors(-30, 24, 7000);
+    driveDistanceByMotors(-38, 24, 9000);
     wait(10, msec);
     m.turnTo(90, 3000);
     wait(10, msec);
@@ -157,81 +244,89 @@ static void HardCodedRight() {
     runIntake(100);
     OuttakeA.spin(forward, 100, percent);
     wait(10, msec);
-    driveDistanceByMotors(-8, 20, 7000);
+
+    OuttakeC.spin(reverse, 70, pct);
+    OuttakeB.spin(forward, 25, percent);
+    wait(10, msec);
+    driveDistanceByMotors(-10.5, 20, 9000);
     wait(900, msec);
 
-    driveDistanceByMotors(4, 17, 7000);
-    driveDistanceByMotors(-5, 15, 7000); //was -6
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
+    wait(500, msec);
+
+    driveDistanceByMotors(1, 17, 5000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 5000);
+    wait(500, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
     wait(900, msec);
-    driveDistanceByMotors(4, 17, 7000);
-    driveDistanceByMotors(-5, 15, 7000);
-    wait(900, msec);
+
+    // driveDistanceByMotors(1, 17, 5000);
+    // wait(10, msec);
+    // driveDistanceByMotors(-2, 17, 5000);
+    // wait(500, msec);
+
+    // driveDistanceByMotors(1, 17, 5000);
+    // wait(10, msec);
+    // driveDistanceByMotors(-2, 17, 5000);
+    // wait(900, msec);
 
     stopIntake();
     OuttakeA.stop();
+    OuttakeB.stop();
+    OuttakeC.stop();
     wait(10, msec);
 
-    driveDistanceByMotors(10, 15, 9000);
-    ballLoader.toggles();
+    
+    wings.toggle();
+    driveDistanceByMotors(31.5, 20, 7000);
     wait(10, msec);
 
-    m.turnBy(140, 8000);
+    runIntake(40);
+    runOutake(75);
+    wait(4, sec);
+
+    stopIntake();
+    stopOutake();
     wait(10, msec);
 
-    runIntake(10);
+    setSorterEnabled(true);
+    driveDistanceByMotors(-3, 20, 7000);
+    wings.toggle();
+    wait(10, msec);
+
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    driveDistanceByMotors(-25.5, 20, 6000);
+    wait(10, msec);
+
+    OuttakeC.spin(reverse, 50, pct);
+    OuttakeB.spin(forward, 25, percent);
+    wait(10, msec);
+    driveDistanceByMotors(-10, 20, 7000);
+    wait(900, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
     wait(500, msec);
 
-    stopIntake();
-    driveDistanceByMotors(-45.5, 24, 7000);
+    driveDistanceByMotors(1, 17, 5000);
     wait(10, msec);
+    driveDistanceByMotors(-2, 17, 5000);
+    wait(500, msec);
 
-    // wings.toggle();
-    setSorterEnabled(false);
-    reverseIntake(40);
-    reverseOutake(40);
-    wait(2, sec);
-
-    runIntake(20);
-    runOutake(20);
-    wait(800, msec);
-
-    stopIntake();
-    stopOutake();
+    driveDistanceByMotors(1, 17, 7000);
     wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000); //was -6
+    wait(900, msec);
     
-    reverseIntake(40);
-    reverseOutake(40);
-    wait(3, sec);
 
-    stopIntake();
-    stopOutake();
-    wait(10, msec);
-
-    driveDistanceByMotors(40.0, 24, 7000);
-    m.turnBy(-138, 7000);
-    wait(10, msec);
-
-    // driveDistanceByMotors(3, 20, 5000);
-    // ballLoader.toggles();
-    // wait(1, sec);
-
-    // runIntake(100);Q
-    // OuttakeA.spin(forward, 100, pct);
-    // driveDistanceByMotors(-5, 15, 7000);
-    // wait(10, msec);
-
-    // driveDistanceByMotors(4, 17, 7000);
-    // driveDistanceByMotors(-5, 15, 7000);
-    // wait(900, msec);
-    // driveDistanceByMotors(4, 17, 7000);
-    // driveDistanceByMotors(-5, 15, 7000);
-    // wait(900, msec);
-
-    // stopIntake();
-    // OuttakeA.stop();
-    // driveDistanceByMotors(5, 17, 7000);
-    // wait(10, msec);
-    
 }
 
 static void SimpleAutonRight() {
