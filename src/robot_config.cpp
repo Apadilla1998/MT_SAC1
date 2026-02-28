@@ -30,14 +30,14 @@ digital_out loader(Brain.ThreeWirePort.B);
 
 inertial inertial_sensor(PORT21);
 
-rotation verticalRot(PORT7, false); //was true
+rotation verticalRot(PORT7, true); //was true
 rotation horizontalRot(PORT6, false);
 
 vision AiSensor(PORT12);
 optical ballSensor(PORT18);
 //optical ballSensor2(PORT14);
 
-motor DescoreMotor(PORT17, ratio36_1, true);
+motor DescoreMotor(PORT17, ratio18_1, true);
 
 namespace config {
     const double TRACK_WIDTH_M = 0.320;

@@ -31,7 +31,7 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 }
 
 MotionController::MotionController()
-    : distPID_(10, 0.00, 0.001),
+    : distPID_(35, 0.00, 0.01),
       headPID_(0.28, 0.0022, 0.001),
       turnPID_(0.29, 0.0022, 0.001)
 {
@@ -78,9 +78,13 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
     const double minCap = 10.0;
     const double stopBand = 0.010;
 
-    const double stopEnter = 0.030;
-    const double stopExit  = 0.055;
-    const int stopSettleMs = 120;
+    // stop latch tuning (anti-overshoot + anti-oscillation)
+    const double stopEnter = 0.020;    // was 0.030
+    const double stopExit  = 0.035;    // was 0.055 (slightly wider than enter to avoid relatch chatter)
+    const int    stopSettleMs = 80;    // was 120
+
+    const double latchSpeedEnter = 14.0; // allow latching at a higher speed once close/crossed
+    const double noReverseBand   = 0.060; // don't command backing up when this close after crossing
 
     bool stopLatch = false;
     double distErrPrev = distM;
@@ -103,7 +107,10 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
         distErrPrev = distErr;
 
         if (!stopLatch) {
-            if (std::fabs(distErr) < stopEnter || (crossed && std::fabs(distErr) < stopExit)) {
+            // once we've crossed, allow latching even if we're still moving
+            const bool canLatch = (std::fabs(vCmd) < latchSpeedEnter) || crossed;
+
+            if (canLatch && (std::fabs(distErr) < stopEnter || (crossed && std::fabs(distErr) < stopExit))) {
                 stopLatch = true;
                 vCmd = 0.0;
                 wCmd = 0.0;
@@ -125,14 +132,15 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
 
             const double headAbs = std::fabs(headErr);
             if (headAbs < 1.0) {
+                // brake instead of coasting at 0
                 w = 0.0;
                 wCmd = 0.0;
+                stopDrive(brake);
             } else {
                 wCmd += clampD(w - wCmd, -dwMax, dwMax);
                 w = wCmd;
+                tankDrive(w, -w);
             }
-
-            tankDrive(w, -w);
 
             stopHoldMs += dtMs;
             if (stopHoldMs >= stopSettleMs) break;
@@ -155,6 +163,12 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
                 const double floor = 18.0;
                 if (std::fabs(v) < floor) v = (distErr > 0.0) ? floor : -floor;
             }
+        }
+
+        // prevent ping-pong: if we've crossed and we're close, don't back up
+        if (crossed && std::fabs(distErr) < noReverseBand && (v * distErr) < 0.0) {
+            v = 0.0;
+            vCmd = 0.0;
         }
 
         if (std::fabs(distErr) < 0.03 && std::fabs(v) < 12.0 && (v * distErr) < 0.0) {
@@ -239,8 +253,17 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
         double fwd = dx * std::sin(hRad) + dy * std::cos(hRad);
         double lat = dx * std::cos(hRad) - dy * std::sin(hRad);
 
-        distPID_.setOutputLimits(-maxSpeedPct, maxSpeedPct);
+        // distance-based cap + stiction floor (fixes CC “slowness”)
+        double cap = 10.0 + 200.0 * std::fabs(fwd);
+        cap = std::min(cap, maxSpeedPct);
+        distPID_.setOutputLimits(-cap, cap);
+
         double v = distPID_.update(-fwd, dt);
+
+        if (std::fabs(fwd) > 0.12) {
+            const double floor = 18.0;
+            if (std::fabs(v) < floor) v = (fwd > 0.0) ? floor : -floor;
+        }
 
         double offDeg = radToDeg(std::atan2(lat, lookaheadM));
         offDeg = clampD(offDeg, -maxOffDeg, +maxOffDeg);

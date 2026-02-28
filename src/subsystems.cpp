@@ -25,7 +25,7 @@ static volatile double g_outakePct = 0.0;
 static constexpr int kLoopMs = 5; // how often you sample: kLoopsMS * KConfrim Samples for window
 static constexpr int kHueBufN = 5; //decrease for faster reaction min 5
 
-// Hue thresholds (keep fairly wide)
+// Hue thresholds 
 static constexpr double kRedLowMax  = 30.0;
 static constexpr double kRedHighMin = 340.0;
 static constexpr double kBlueMin    = 180.0;
@@ -49,8 +49,8 @@ static constexpr int kCooldownMs = 10; //how long you wait before sorting
 static constexpr int kRejectColorIntakePct = 100;
 
 // If reject goes the wrong way, flip this dir between -1 and +1
-static constexpr int kRejectOuttakePct = 20;
-static constexpr int kRejectOuttakeDir = -1; // -1 = reverse, +1 = forward
+// static constexpr int kRejectOuttakePct = 20;
+// static constexpr int kRejectOuttakeDir = -1; // -1 = reverse, +1 = forward
 
 // Public API
 void setSorterEnabled(bool enabled) { g_sorterEnabled = enabled; }
@@ -73,7 +73,7 @@ void runIntake(double speedPct) {
 
     MainIntake.spin(fwd, speedPct, pct);
     ColorIntake.spin(fwd, speedPct, pct);
-    
+
 }
 
 void reverseIntake(double speedPct) {
@@ -125,7 +125,7 @@ void stopOutake() {
 }
 
 // -------------------- Descore arm --------------------
-void moveArmRight(double speedPct) { DescoreMotor.spin(fwd,     speedPct, pct); }
+void moveArmRight(double speedPct) { DescoreMotor.spinFor(1000, msec); }
 void moveArmLeft (double speedPct) { DescoreMotor.spin(reverse, speedPct, pct); }
 void stopArm()                     { DescoreMotor.stop(hold); }
 

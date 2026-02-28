@@ -25,12 +25,12 @@ static constexpr double kDriveAccelPctPerS = 1500.0;
 static constexpr double kDriveDecelPctPerS = 950.0;
 static constexpr double kDt               = 0.025;
 
-static constexpr double kDriveScaleFast = 0.60;
+static constexpr double kDriveScaleFast = 0.75; //was 60
 static constexpr double kTurnScaleFast  = 0.45;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
 
-static constexpr int    kDeadbandPct = 0;
+static constexpr int    kDeadbandPct = 0; 
 static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
 static constexpr int kIntakePct            = 75;
@@ -420,7 +420,7 @@ static void handleIntakeOuttake() {
     setSorterEnabled(sorterShouldRun);
 
   
-    // Intake motor control
+    // Intake motor control change y to make it so that mainintake is the only thing that spins
 
     if (a) {
         // If we're currently intaking/scoring, reuse that speed; otherwise default to intake speed.
@@ -437,13 +437,11 @@ static void handleIntakeOuttake() {
     }
 
     if (!a && mode == IntakeMode::INTAKE) {
-        OuttakeC.spin(reverse, 70, pct);
-        OuttakeB.stop(hold);
+        OuttakeB.spin(reverse, 25, pct);
         OuttakeA.spin(forward, 50, percent);
     } else {
-        OuttakeC.stop(coast);
         OuttakeB.stop(coast);
-        OuttakeC.stop(coast);
+        OuttakeA.stop(coast);
     }
 
   
