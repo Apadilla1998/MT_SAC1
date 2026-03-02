@@ -31,7 +31,7 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 }
 
 MotionController::MotionController()
-    : distPID_(35, 0.00, 0.01),
+    : distPID_(25, 0.00, 0.01),
       headPID_(0.28, 0.0022, 0.001),
       turnPID_(0.29, 0.0022, 0.001)
 {
