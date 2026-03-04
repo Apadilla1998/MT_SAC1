@@ -1,43 +1,66 @@
+// ============================
+// robot_config.h
+// ============================
 #ifndef ROBOT_CONFIG_H
 #define ROBOT_CONFIG_H
 
 #include "vex.h"
+#include <cmath>
 
-extern vex::brain Brain;
-extern vex::controller Controller1;
+using namespace vex;
 
-extern vex::motor LeftA;
-extern vex::motor LeftB;
-extern vex::motor LeftC;
-extern vex::motor_group LeftMotorGroup;
+// Brain / Controller
+extern brain Brain;
+extern controller Controller1;
 
-extern vex::motor RightA;
-extern vex::motor RightB;
-extern vex::motor RightC;
-extern vex::motor_group RightMotorGroup;
+// Drive
+extern motor LeftA;
+extern motor LeftB;
+extern motor LeftC;
+extern motor_group LeftMotorGroup;
 
-extern vex::motor MainIntake;
-extern vex::motor ColorIntake;
+extern motor RightA;
+extern motor RightB;
+extern motor RightC;
+extern motor_group RightMotorGroup;
 
-extern vex::motor OuttakeA;
-extern vex::motor OuttakeB;
-extern vex::motor OuttakeC;
-extern vex::motor_group Outtake;
+// Intake / Outtake
+extern motor MainIntake;
+extern motor ColorIntake;
 
+extern motor OuttakeA;
+extern motor OuttakeB;
+extern motor OuttakeC;
+extern motor_group Outtake;
 
-extern vex::digital_out wingsPiston;
-extern vex::digital_out loader;
-extern vex::inertial inertial_sensor;
+// Pneumatics
+extern digital_out wingsPiston;
+extern digital_out loader;
 
-extern vex::rotation verticalRot;
-extern vex::rotation horizontalRot;
+// IMU + tracking
+extern inertial inertial_sensor;
+extern rotation verticalRot;
+extern rotation horizontalRot;
 
-extern vex::vision AiSensor;
-extern vex::optical ballSensor;
-//extern vex::optical ballSensor2;
+// Vision (signatures + sensor)
+extern vex::vision::signature GOAL;
+extern vex::vision::signature SIG_2;
+extern vex::vision::signature SIG_3;
+extern vex::vision::signature SIG_4;
+extern vex::vision::signature SIG_5;
+extern vex::vision::signature SIG_6;
+extern vex::vision::signature SIG_7;
 
-extern vex::motor DescoreMotor;
+extern vision VisionSensor;
 
+// Other sensors
+extern optical ballSensor;
+// extern optical ballSensor2;
+
+// Other motors
+extern motor DescoreMotor;
+
+// Config constants
 namespace config {
     extern const double TRACK_WIDTH_M;
     extern const double TRACKING_WHEEL_CIRCUMFERENCE_M;

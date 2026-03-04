@@ -21,12 +21,12 @@ static constexpr double kTurnCurve = 0.250;
 static constexpr double kLeftBias  = 1.00;
 static constexpr double kRightBias = 1.00;
 
-static constexpr double kDriveAccelPctPerS = 1500.0;
-static constexpr double kDriveDecelPctPerS = 950.0;
+static constexpr double kDriveAccelPctPerS = 2000.0;
+static constexpr double kDriveDecelPctPerS = 1500.0;
 static constexpr double kDt               = 0.025;
 
-static constexpr double kDriveScaleFast = 0.75; //was 60
-static constexpr double kTurnScaleFast  = 0.45;
+static constexpr double kDriveScaleFast = 1; //was 60
+static constexpr double kTurnScaleFast  = 0.50;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
 

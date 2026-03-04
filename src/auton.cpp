@@ -5,11 +5,36 @@
 #include "drive.h"
 #include "utils.h"
 #include "vex.h"
+#include "vision_utils.h"
 #include <cmath>
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::SKILLS; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2
+AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2
+
+    // bool loaderSeen = visionTurnToCenter(
+    //     GOAL,      // signature
+    //     1200,      // timeoutMs
+    //     0.35,      // kP
+    //     0.10,      // kD
+    //     4,         // deadbandPx
+    //     35,        // maxTurnPct
+    //     10,        // lostFramesToFail
+    //     158.0,     // centerX
+    //     15.0       // offsetX (set 0.0 if you don't want bias)
+    // );
+
+// If it stops too far: increase targetWidthPx (e.g. 130–160).
+
+// If it rams too hard: lower drivePct (e.g. 15–18).
+
+// If it wiggles: increase deadbandPx to 6 or lower kTurnP to 0.25.
+
+    // // Optional: if it didn't see the loader, still continue auton
+    // if (!loaderSeen) {
+    //     // quick safety stop (visionTurnToCenter already stops, this is just extra)
+    //     stopDrive(brake);
+    // }
 
 static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs) {
     const double wheelDiamIn = 3.25;
@@ -607,11 +632,11 @@ static void HardCodedRight() {
 static void SimpleAutonRight() {
     MotionController m;
     m.setAutoCorrectEnabled(true);
-    setSorterEnabled(true);
+    setSorterEnabled(false);
     
-    m.driveHeadingCC(-0.762, 7000, 50, 0);
+    m.driveHeadingCC(-0.84, 2500, 50, 0);
     wait(10, msec);
-    m.turnTo(90, 3000);
+    m.turnTo(90, 2000);
     wait(10, msec);
 
     ballLoader.toggles();
@@ -621,7 +646,7 @@ static void SimpleAutonRight() {
     OuttakeA.spin(forward, 100, percent);
     wait(10, msec);
 
-    m.driveHeadingCC(-0.3302, 7000, 50, 90);
+    m.driveHeadingCC(-0.3302, 2000, 50, 90);
     wait(900, msec);
 
     driveDistanceByMotors(1, 17, 7000);
@@ -629,125 +654,47 @@ static void SimpleAutonRight() {
     driveDistanceByMotors(-2, 17, 7000); //was -6
     wait(500, msec);
 
-    driveDistanceByMotors(1, 17, 5000);
-    wait(10, msec);
-    driveDistanceByMotors(-2, 17, 5000);
-    wait(500, msec);
-
-    driveDistanceByMotors(1, 17, 7000);
-    wait(10, msec);
-    driveDistanceByMotors(-2, 17, 7000); //was -6
-    wait(500, msec);
-
-    // driveDistanceByMotors(1, 17, 5000);
-    // wait(10, msec);
-    // driveDistanceByMotors(-2, 17, 5000);
-    // wait(500, msec);
-
-    // driveDistanceByMotors(1, 17, 5000);
-    // wait(10, msec);
-    // driveDistanceByMotors(-2, 17, 5000);
-    // wait(900, msec);
-
     stopIntake();
     OuttakeA.stop();
-    setSorterEnabled(false);
     wait(10, msec);
 
-//     driveDistanceByMotors(13, 15, 9000);
-//     ballLoader.toggles();
-//     wait(10, msec);
+    driveDistanceByMotors(6, 30, 1000);
+    ballLoader.toggles();
+    m.turnTo(45, 1500);
+    wait(10, msec);
 
-//     m.turnBy(139, 8000);
-//     wait(10, msec);
+    driveDistanceByMotors(22, 20, 3000);
+    wait(10, msec);
 
-//     runIntake(10);
-//     wait(500, msec);
+    m.turnTo(90, 1500);
+    m.driveHeadingCC(1.8, 5500, 60, 90);
+    wait(10, msec);
 
-//     stopIntake();
-//     m.driveHeadingCC(-1.0922, 7000, 30, 139);
-//     wait(10, msec);
+    m.turnTo(180, 2000);
+    driveDistanceByMotors(19, 30, 3000);
+    wait(10, msec);
 
-//     // wings.toggle();
-//     reverseIntake(40);
-//     reverseOutake(40);
-//     wait(2, sec);
+    m.turnTo(-90, 2000);
+    bool loaderSeen = visionTurnToCenterId(
+        1,      // sigId
+        3000,   // timeoutMs
+        10,   // kP
+        0.1,   // kD
+        4,      // deadbandPx
+        35,     // maxTurnPct
+        10,     // lostFramesToFail
+        158.0,  // centerX
+        15.0    // offsetX (set 0 if you don't want bias)
+    );
 
-//     runIntake(20);
-//     runOutake(20);
-//     wait(900, msec);
+    if (!loaderSeen) {
+        // quick safety stop
+        stopDrive(brake);
+    }
 
-//     stopIntake();
-//     stopOutake();
-//     wait(10, msec);
-    
-//     reverseIntake(40);
-//     reverseOutake(40);
-//     wait(3, sec);
 
-//     stopIntake();
-//     stopOutake();
-//     wait(10, msec);
 
-// /////////////////////////////////////////////////////////////
-// //going toward loader
-//     setSorterEnabled(true);
-//     m.driveHeadingCC(1.1176, 9000, 30, 139);
-//     m.turnTo(90, 5000);
-//     wait(10, msec);
 
-//     ballLoader.toggles();
-//     runIntake(100);
-//     runOutake(100);
-//     driveDistanceByMotors(-13, 25, 5000);
-//     wait(10, msec);
-
-//     driveDistanceByMotors(1, 17, 7000);
-//     wait(10, msec);
-//     driveDistanceByMotors(-2, 17, 7000); //was -6
-//     wait(500, msec);
-
-//     driveDistanceByMotors(1, 17, 5000);
-//     wait(10, msec);
-//     driveDistanceByMotors(-2, 17, 5000);
-//     wait(500, msec);
-
-//     driveDistanceByMotors(1, 17, 7000);
-//     wait(10, msec);
-//     driveDistanceByMotors(-2, 17, 7000); //was -6
-//     wait(500, msec);
-
-//     stopIntake();
-//     stopOutake();
-// /////////////////////////////////////////////////////////////////////////
-
-//     //going toward goal
-// //////////////////////////////////////////////////
-//     stopIntake();
-//     OuttakeA.stop();
-//     OuttakeB.stop();
-//     OuttakeC.stop();
-//     wait(10, msec);
-//     wings.toggle();
-//     m.driveHeadingCC(0.8382, 7000, 40, 90);
-//     wait(10, msec);
-
-//     runIntake(40);
-//     runOutake(75);
-//     wait(4, sec);
-
-//     reverseOutake(20);
-//     reverseIntake(20);
-//     wait(2, sec);
-
-//     runIntake(40);
-//     runOutake(75);
-//     wait(4, sec);
-
-//     stopIntake();
-//     stopOutake();
-//     wait(10, msec);
-// ///////////////////////////////////////////////////////////////////////
 }
 
 static void SimpleAutonLeft() {
@@ -843,17 +790,22 @@ static void autoCorrectRedLeft() {
     MotionController m;
     m.setAutoCorrectEnabled(true);
 
-    m.driveAC(0.82, 4000, 80);
-    wait(10, msec);
+    // m.turnTo(90, 3000);
+    // wait(10, msec);
 
-    m.turnTo(90, 4000);
-    wait(10, msec);
-
-    m.driveAC(0.30, 4000, 80);
-    wait(5000, msec);
-
-    m.driveHeadingAC(-0.05, 4000, 80, 90);
-    wait(10, msec);
+    // Signature ID = 1 (because you constructed GOAL with id=1)
+    bool loaderSeen = visionTurnToCenterId(
+        1,      // sigId
+        1200,   // timeoutMs
+        0.01,   // kP
+        0.00,   // kD
+        4,      // deadbandPx
+        35,     // maxTurnPct
+        10,     // lostFramesToFail
+        158.0,  // centerX
+        15.0    // offsetX (set 0 if you don't want bias)
+    );
+    (void)loaderSeen; // prevents unused-variable warning
 }
 
 static void autoCorrectBlueLeft() {

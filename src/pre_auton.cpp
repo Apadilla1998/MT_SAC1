@@ -1,3 +1,6 @@
+// ============================
+// pre_auton.cpp
+// ============================
 #include "pre_auton.h"
 #include "robot_config.h"
 #include "sensors.h"
@@ -15,6 +18,15 @@ void pre_auton() {
 
     initSensors();
     resetOdometry();
+
+    // Vision setup (consistent across venues)
+    VisionSensor.setBrightness(72);
+
+    // Optional LED control:
+    VisionSensor.setLedMode(vex::vision::ledMode::automatic);
+    // Or force manual light:
+    // VisionSensor.setLedMode(vex::vision::ledMode::manual);
+    // VisionSensor.setLedColor(255, 255, 255);
 
     if (!odomTask)   odomTask   = new task(odomTaskFn);
     if (!sorterTask) sorterTask = new task(intakeTaskFn);
