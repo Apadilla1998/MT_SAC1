@@ -33,6 +33,8 @@ extern motor OuttakeB;
 extern motor OuttakeC;
 extern motor_group Outtake;
 
+extern potV2 Descore;
+
 // Pneumatics
 extern digital_out wingsPiston;
 extern digital_out loader;

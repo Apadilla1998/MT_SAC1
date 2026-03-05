@@ -30,6 +30,8 @@ motor OuttakeB(PORT5,  ratio6_1, false); // towards end
 motor OuttakeC(PORT16, ratio6_1, false); // top one
 motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
 
+potV2 Descore(Brain.ThreeWirePort.D);
+
 // ---------------- Pneumatics ----------------
 digital_out wingsPiston(Brain.ThreeWirePort.A);
 digital_out loader(Brain.ThreeWirePort.B);

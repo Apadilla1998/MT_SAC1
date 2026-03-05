@@ -4,12 +4,13 @@
 #include "odom.h"
 #include "utils.h"
 #include <cmath>
+#include "descore.h"
 #include <algorithm>
 
 using namespace vex;
 
 // Tunables / Constants
-static constexpr int    kOuttakeNormalPct   = 100;
+static constexpr int    kOuttakeNormalPct   = 50;
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
 static constexpr double kOuttakeAccelPctPerS = 600.0;
@@ -25,7 +26,7 @@ static constexpr double kDriveAccelPctPerS = 2000.0;
 static constexpr double kDriveDecelPctPerS = 1500.0;
 static constexpr double kDt               = 0.025;
 
-static constexpr double kDriveScaleFast = 1; //was 60
+static constexpr double kDriveScaleFast = 1.0; //was 60
 static constexpr double kTurnScaleFast  = 0.50;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
@@ -74,6 +75,86 @@ static bool g_sorterEnabledUser = true;
 // Intake toggle mode
 enum class IntakeMode { OFF, INTAKE, SCORE, REVERSE };
 static IntakeMode g_intakeMode = IntakeMode::OFF;
+
+
+// // ---- ARM SETTINGS (Left=Up, Right=Down) ----
+// // 1. TARGETS
+// static const double ARM_DOWN_DEG = 190.5;
+// static const double ARM_UP_DEG   = 76.0;
+
+// // 2. VARIABLE SPEED (NO PID)
+// // Slow near either end-cap, fastest in the middle between UP and DOWN.
+// static const double ARM_MIN_PWR = 12.0;  // power near either end (raise if it stalls)
+// static const double ARM_MAX_PWR = 60.0;  // power at the midpoint (fastest)
+
+// // 3. DEADBAND
+// static const double ARM_DEADBAND = 3.0;
+
+
+// static double armTargetDeg = ARM_DOWN_DEG;
+// static bool   armActive    = false;
+
+// // Slew State
+// static double lCmd = 0.0;
+// static double rCmd = 0.0;
+
+// // ---- SIMPLE ARM LOGIC WITH HARD STOPS + "FAST IN MIDDLE" SPEED PROFILE ----
+// static void armUpdateSimple() {
+//     double currentDeg = Descore.angle(degrees);
+//     double error = armTargetDeg - currentDeg;
+
+//     // SAFETY CAPS: Hard stop if we are past limits and trying to go further
+//     if (currentDeg <= ARM_UP_DEG && error < 0) {
+//         DescoreMotor.stop(hold);
+//         return;
+//     }
+//     if (currentDeg >= ARM_DOWN_DEG && error > 0) {
+//         DescoreMotor.stop(hold);
+//         return;
+//     }
+
+//     double absErr = std::fabs(error);
+
+//     // Deadband near target
+//     if (absErr < ARM_DEADBAND) {
+//         DescoreMotor.stop(hold);
+//         return;
+//     }
+
+//     // -----------------------------
+//     // Speed depends on POSITION, not error:
+//     // - slow near ARM_UP_DEG
+//     // - slow near ARM_DOWN_DEG
+//     // - fastest near the midpoint between them
+//     // -----------------------------
+//     double range = (ARM_DOWN_DEG - ARM_UP_DEG);
+//     if (range < 1e-6) range = 1.0;
+
+//     // Normalize position: 0 at UP, 1 at DOWN
+//     double pos = (currentDeg - ARM_UP_DEG) / range;
+//     if (pos < 0.0) pos = 0.0;
+//     if (pos > 1.0) pos = 1.0;
+
+//     // midFactor: 1 at middle, 0 at ends
+//     double midFactor = 1.0 - 2.0 * std::fabs(pos - 0.5);
+//     if (midFactor < 0.0) midFactor = 0.0;
+
+//     // Optional shaping for a punchier middle (comment out if you want linear)
+//     midFactor = midFactor * midFactor;
+
+//     // Power magnitude (ends -> ARM_MIN_PWR, middle -> ARM_MAX_PWR)
+//     double mag = ARM_MIN_PWR + midFactor * (ARM_MAX_PWR - ARM_MIN_PWR);
+
+//     // Apply direction based on where target is
+//     double power = (error > 0) ? mag : -mag;
+
+//     // Final clamp (safety)
+//     if (power >  100) power =  100;
+//     if (power < -100) power = -100;
+
+//     DescoreMotor.spin(fwd, power, pct);
+// }
+
 
 // Helpers
 static inline double applyCurvePct(double inputPct, double curve) {

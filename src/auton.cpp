@@ -5,12 +5,16 @@
 #include "drive.h"
 #include "utils.h"
 #include "vex.h"
+#include "manual.h"
 #include "vision_utils.h"
+#include "descore.h"
 #include <cmath>
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2
+AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2, IMPLE_AUTON_RIGHT
+
+
 
     // bool loaderSeen = visionTurnToCenter(
     //     GOAL,      // signature
@@ -632,8 +636,11 @@ static void HardCodedRight() {
 static void SimpleAutonRight() {
     MotionController m;
     m.setAutoCorrectEnabled(true);
-    setSorterEnabled(false);
-    
+    setSorterEnabled(false);  
+
+    // armMoveTo(239, 1000);
+
+//////////////////////////////////////////////////////////////// going towards the loader
     m.driveHeadingCC(-0.84, 2500, 50, 0);
     wait(10, msec);
     m.turnTo(90, 2000);
@@ -646,52 +653,109 @@ static void SimpleAutonRight() {
     OuttakeA.spin(forward, 100, percent);
     wait(10, msec);
 
-    m.driveHeadingCC(-0.3302, 2000, 50, 90);
+    m.driveHeadingCC(-0.3002, 2000, 50, 90); //was -0.3302
     wait(900, msec);
 
     driveDistanceByMotors(1, 17, 7000);
     wait(10, msec);
     driveDistanceByMotors(-2, 17, 7000); //was -6
-    wait(500, msec);
+    wait(900, msec);
 
     stopIntake();
     OuttakeA.stop();
     wait(10, msec);
-
+//////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// going toward opposite side
     driveDistanceByMotors(6, 30, 1000);
     ballLoader.toggles();
     m.turnTo(45, 1500);
     wait(10, msec);
 
-    driveDistanceByMotors(22, 20, 3000);
+    //driveDistanceByMotors(22, 20, 3000);
+    m.driveHeadingCC(0.55, 3000, 40, 45);
     wait(10, msec);
 
     m.turnTo(90, 1500);
-    m.driveHeadingCC(1.8, 5500, 60, 90);
+    m.driveHeadingCC(2, 3000, 60, 90);
     wait(10, msec);
+// /////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////turning towards goal and depositing
 
     m.turnTo(180, 2000);
-    driveDistanceByMotors(19, 30, 3000);
+    //driveDistanceByMotors(19, 30, 3000);
+    m.driveHeadingCC(0.45, 3000, 40, 180);
     wait(10, msec);
 
+    wings.toggle();
     m.turnTo(-90, 2000);
-    bool loaderSeen = visionTurnToCenterId(
-        1,      // sigId
-        3000,   // timeoutMs
-        10,   // kP
-        0.1,   // kD
-        4,      // deadbandPx
-        35,     // maxTurnPct
-        10,     // lostFramesToFail
-        158.0,  // centerX
-        15.0    // offsetX (set 0 if you don't want bias)
+    bool seen = visionAlignOnlyToCenterId(
+        1,      // GOAL signature
+        2000,
+        0.35,
+        0.0,
+        5,
+        12,
+        8,
+        158.0,
+        0.0
     );
 
-    if (!loaderSeen) {
-        // quick safety stop
-        stopDrive(brake);
-    }
+if (!seen) stopDrive(brake);
 
+    driveDistanceByMotors(22, 30, 5000);
+    runIntake(100);
+    runOutake(100);
+    wait(900, msec);
+
+    reverseIntake(25);
+    reverseOutake(25);
+    wait(400, msec);
+
+    runIntake(100);
+    runOutake(100);
+    wait(1, sec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    // ballLoader.toggles();
+    // wait(1, sec); 
+
+    // m.driveHeadingCC(-1.1, 3000, 40, -90);
+    // runIntake(100);
+    // OuttakeA.spin(forward, 100, percent);
+    // wait(10, msec);
+
+    // m.driveHeadingCC(-0.3002, 2000, 50, -90); //was -0.3302
+    // wait(900, msec);
+
+    // driveDistanceByMotors(1, 17, 7000);
+    // wait(10, msec);
+    // driveDistanceByMotors(-2, 17, 7000); //was -6
+    // wait(900, msec);
+
+    // stopIntake();
+    // OuttakeA.stop();
+    // wait(10, msec);
+
+
+    // ballLoader.toggles();
+
+    // m.driveHeadingCC(0.8, 3000, 50, 90);
+    // visionTurnToCenterId(
+    //     1,
+    //     2000,
+    //     0.35,
+    //     0.0,
+    //     5,
+    //     5,
+    //     10,
+    //     158.0,
+    //     0.0   // offsetX = 0 for tuning
+    // );
+
+    // m.driveHeadingCC(0.3, 3000, 50, 90);
 
 
 
@@ -817,7 +881,7 @@ static void autoCorrectBlueLeft() {
 
 static void autoCorrectRedRight() {}
 
-static void blueLeft() {}
+static void blueLeft() {  while(true) printArmAngleControllerUpdate(); }
 
 static void Trash(){
     MotionController m;
