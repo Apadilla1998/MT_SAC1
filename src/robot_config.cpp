@@ -46,25 +46,27 @@ optical ballSensor(PORT18);
 // optical ballSensor2(PORT14);
 
 // ---------------- Vision ----------------
-// From your Vision Utility JSON ("GOAL")
+// From your NEW Vision Utility JSON (brightness=10, signature ID=1)
 vex::vision::signature GOAL(
-    1,                 // signature ID
-    645, 2013, 1329,    // uMin, uMax, uMean
-   -3803, -3151, -3477, // vMin, vMax, vMean
-    2.5,               // range
-    0                  // type
+  1,
+  3359, 4429, 3894,
+  -3295, -2827, -3061,
+  2.5,
+  0
 );
 
-// Unused placeholders (keep constructor happy if you want 7 sigs)
-vex::vision::signature SIG_2(2, 0,0,0, 0,0,0, 2.5, 0);
-vex::vision::signature SIG_3(3, 0,0,0, 0,0,0, 2.5, 0);
-vex::vision::signature SIG_4(4, 0,0,0, 0,0,0, 2.5, 0);
-vex::vision::signature SIG_5(5, 0,0,0, 0,0,0, 2.5, 0);
-vex::vision::signature SIG_6(6, 0,0,0, 0,0,0, 2.5, 0);
-vex::vision::signature SIG_7(7, 0,0,0, 0,0,0, 2.5, 0);
+vex::vision::signature SIG_2(2, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision::signature SIG_3(3, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision::signature SIG_4(4, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision::signature SIG_5(5, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision::signature SIG_6(6, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision::signature SIG_7(7, 0, 0, 0, 0, 0, 0, 2.5, 0);
 
-// brightness = 72 (from your JSON)
-vision VisionSensor(PORT12, 72, GOAL, SIG_2, SIG_3, SIG_4, SIG_5, SIG_6, SIG_7);
+vex::vision VisionSensor(
+  vex::PORT12,
+  10,
+  GOAL, SIG_2, SIG_3, SIG_4, SIG_5, SIG_6, SIG_7
+);
 
 // ---------------- Other motors ----------------
 motor DescoreMotor(PORT17, ratio18_1, true);

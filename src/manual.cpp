@@ -10,7 +10,7 @@
 using namespace vex;
 
 // Tunables / Constants
-static constexpr int    kOuttakeNormalPct   = 50;
+static constexpr int    kOuttakeNormalPct   = 25;
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
 static constexpr double kOuttakeAccelPctPerS = 600.0;
@@ -34,8 +34,8 @@ static constexpr double kTurnBoostAtFullFwd = 0.25;
 static constexpr int    kDeadbandPct = 0; 
 static constexpr int    kDriveUnlockJoyThreshPct = 8;
 
-static constexpr int kIntakePct            = 75;
-static constexpr int kScoreIntakePct       = 75;
+static constexpr int kIntakePct            = 100;
+static constexpr int kScoreIntakePct       = 100;
 static constexpr int kReversePct           = 25;
 static constexpr int boost_NUMER           = 100;
 
@@ -499,6 +499,7 @@ static void handleIntakeOuttake() {
         (mode != IntakeMode::REVERSE);
 
     setSorterEnabled(sorterShouldRun);
+    //setSorterEnabled(false);  //for skills have this false
 
   
     // Intake motor control change y to make it so that mainintake is the only thing that spins

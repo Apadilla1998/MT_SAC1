@@ -28,7 +28,6 @@ static inline bool visionAlignOnlyToCenterId(
     int stableMs = 0;
     int lost = 0;
 
-    // “don’t whip past center” helpers
     const double slowBandPx = 70.0;   // bigger = gentler near center
     const double minTurnPct = 2.5;    // tiny stiction help
     const double maxStepPct = 1.5;    // slew limit per loop
@@ -36,7 +35,6 @@ static inline bool visionAlignOnlyToCenterId(
     while (t.time(vex::msec) < timeoutMs) {
         VisionSensor.takeSnapshot(sigId);
 
-        // --------- If not visible: STOP (no scanning!) ----------
         if (VisionSensor.objectCount <= 0) {
             lost++;
             stableMs = 0;
@@ -58,7 +56,6 @@ static inline bool visionAlignOnlyToCenterId(
         const double targetX = centerX + offsetX;
         double err = (double)obj.centerX - targetX;
 
-        // --------- Centered: BRAKE and confirm ----------
         if (std::fabs(err) <= deadbandPx) {
             stableMs += dtMs;
             stopDrive(vex::brake);
@@ -73,29 +70,24 @@ static inline bool visionAlignOnlyToCenterId(
 
         stableMs = 0;
 
-        // --------- Compute turn command ----------
         double derr = (err - prevErr) / dt;
         prevErr = err;
 
         double turn = kP * err + kD * derr;
         turn = clampD(turn, -maxTurnPct, +maxTurnPct);
 
-        // slow down near center
-        double scale = std::fabs(err) / slowBandPx;   // 0..1
+        double scale = std::fabs(err) / slowBandPx; 
         scale = clampD(scale, 0.0, 1.0);
         turn *= scale;
 
-        // tiny stiction help
         if (std::fabs(turn) < minTurnPct) {
             turn = (err > 0.0) ? +minTurnPct : -minTurnPct;
         }
 
-        // slew limit (prevents snapping)
         turn = clampD(turn, lastTurn - maxStepPct, lastTurn + maxStepPct);
         lastTurn = turn;
 
-        // --------- Apply rotation ----------
-        tankDrive(turn, -turn);
+        tankDrive(-turn, turn);
 
         vex::wait(dtMs, vex::msec);
     }

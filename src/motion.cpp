@@ -31,9 +31,9 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 }
 
 MotionController::MotionController()
-    : distPID_(25, 0.00, 0.1),
-      headPID_(0.28, 0.0022, 0.001),
-      turnPID_(0.29, 0.0022, 0.001)
+    : distPID_(25, 0.00, 0.3),
+      headPID_(0.30, 0.0022, 0.001),
+      turnPID_(0.30, 0.0022, 0.001)
 {
     distPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
     distPID_.setDerivativeFilterTf(0.18);
@@ -573,4 +573,36 @@ void MotionController::turnByAC(double deltaDeg, int timeoutMs,
     turnBy(deltaDeg, timeoutMs);
 
     autoCorrect(s.x, s.y, targetHead, correctTimeoutMs, correctSpeedPct);
+}
+
+void MotionController::addFix(double desired_heading,
+                              double kMaxLat,
+                              double kMaxFwd,
+                              int timeoutMs) {
+    // kept only to match your requested signature
+    (void)kMaxLat;
+    (void)kMaxFwd;
+
+    timer t;
+    t.reset();
+
+    while (t.time(msec) < timeoutMs) {
+        const double h = inertial_sensor.heading(deg);
+        const double hErr = angleDiffDeg(desired_heading, h);
+
+        // close enough, stop early
+        if (std::fabs(hErr) < 1.0) break;
+
+        // small corrective turn
+        if (hErr > 0.0) {
+            // if this turns the wrong way on your robot, swap the signs below
+            tankDrive(15, -10);
+        } else {
+            tankDrive(-10, 15);
+        }
+
+        wait(20, msec);
+    }
+
+    stopDrive(brake);
 }

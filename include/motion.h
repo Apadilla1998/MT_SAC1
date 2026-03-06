@@ -38,6 +38,9 @@ public:
     void turnByAC(double deltaDeg, int timeoutMs = 4000,
                   int correctTimeoutMs = 900, double correctSpeedPct = 30.0);
 
+    void addFix(double desired_heading, double kMaxLat = 0.25,
+                double kMaxFwd = 0.25, int timeoutMs = 200);
+
 private:
     PID distPID_;
     PID headPID_;
