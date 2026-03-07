@@ -739,6 +739,7 @@ static void SimpleAutonRight() {
     stopOutake();
 
     // ballLoader.toggles();
+    runIntake(20);
     m.turnTo(45, 1500);
     wait(10, msec);
 
@@ -752,9 +753,21 @@ static void SimpleAutonRight() {
 // /////////////////////////////////////////////////////////////////////
 // /////////////////////////////////////////////////turning towards goal and depositing
 
+    reverseIntake(40);
+    wait(200, msec);
+
+    stopIntake();
     wings.toggle();
+    wait(10, msec);
+
+    // wings.toggle();
+    // wait(50, msec);
+    // wings.toggle();
     m.turnTo(180, 2000);
     //driveDistanceByMotors(19, 30, 3000);
+    wings.toggle();
+    wait(50, msec);
+    wings.toggle();
     m.drive(0.44, 2000, 40); //was 0.42
     wait(10, msec);
 
@@ -785,7 +798,7 @@ static void SimpleAutonRight() {
     wait(250, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -793,7 +806,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -801,7 +814,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -809,7 +822,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -817,7 +830,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -825,8 +838,8 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
-    wait(500, msec);
+    runOutake(80);
+    wait(900, msec);
 
     stopIntake();
     stopOutake();
@@ -869,7 +882,12 @@ static void SimpleAutonRight() {
     driveDistanceByMotors(2, 17, 2000);
     wait(10, msec);
     driveDistanceByMotors(-3, 20, 2000); //was -6
-    wait(1000, msec);
+    wait(100, msec);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(400, msec);
 
 
     stopIntake();
@@ -895,12 +913,12 @@ static void SimpleAutonRight() {
     m.addFix(-90);
     driveDistanceByMotors(8, 100, 1500);
     
-        reverseIntake(40);
+    reverseIntake(40);
     reverseOutake(40);
     wait(250, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -908,7 +926,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -916,7 +934,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -924,7 +942,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -932,7 +950,7 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
@@ -940,17 +958,42 @@ static void SimpleAutonRight() {
     wait(10, msec);
 
     runIntake(100);
-    runOutake(90);
+    runOutake(80);
     wait(500, msec);
 
     stopIntake();
     stopOutake();
     wait(10, msec);
 
-    driveDistanceByMotors(-2, 50, 1000);
-    driveDistanceByMotors(3, 50, 1000);
+    runIntake(100);
+    runOutake(80);
+    wait(900, msec);
 
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    // driveDistanceByMotors(-2, 20, 1000);
     wings.toggle();
+
+    // wings.toggle();
+    // driveDistanceByMotors(-2, 50, 1000);
+
+    // runIntake(100);
+    // wait(500, msec);
+    // stopIntake();
+    // wait(10, msec);
+
+    // wings.toggle();
+    // driveDistanceByMotors(5, 50, 1000);
+
+    // runIntake(100);
+    // runOutake(80);
+    // wait(500, msec);
+
+    // stopIntake();
+    // stopOutake();
+    // wait(10, msec);
 
 }
 
