@@ -6,7 +6,7 @@
 using namespace vex;
 
 // Globals (declared in subsystems.h)
-Alliance myAlliance = BLUE;
+Alliance myAlliance = RED;
 Wings wings;
 BallLoader ballLoader;
 
@@ -71,7 +71,7 @@ void runIntake(double speedPct) {
 
     if (g_sorterOverrideActive) return;
 
-    MainIntake.spin(fwd, speedPct, pct);
+    MainIntake.spin(fwd, speedPct * 0.7, pct);
     ColorIntake.spin(fwd, speedPct, pct);
 
 }
@@ -112,7 +112,10 @@ void reverseOutake(double speedPct) {
 
     if (g_sorterOverrideActive) return;
 
-    Outtake.spin(reverse, speedPct, pct);
+    // Outtake.spin(reverse, speedPct, pct);
+    OuttakeA.spin(reverse, 35, pct);
+    OuttakeB.spin(reverse, speedPct, pct);
+    OuttakeC.spin(reverse, speedPct, pct);
 }
 
 void stopOutake() {

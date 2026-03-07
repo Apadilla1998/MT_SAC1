@@ -32,8 +32,8 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 
 MotionController::MotionController()
     : distPID_(25, 0.00, 0.3),
-      headPID_(0.30, 0.0022, 0.001),
-      turnPID_(0.30, 0.0022, 0.001)
+      headPID_(0.25, 0.00, 0.000),
+      turnPID_(0.25, 0.00, 0.000)
 {
     distPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
     distPID_.setDerivativeFilterTf(0.18);

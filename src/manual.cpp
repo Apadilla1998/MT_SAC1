@@ -10,7 +10,7 @@
 using namespace vex;
 
 // Tunables / Constants
-static constexpr int    kOuttakeNormalPct   = 25;
+static constexpr int    kOuttakeNormalPct   = 25; //25 FOR SKILLS, 75 
 static constexpr int    kOuttakeWingsUpPct  = 100;
 
 static constexpr double kOuttakeAccelPctPerS = 600.0;
@@ -400,9 +400,9 @@ static void handleToggles(bool& needsUpdate) {
     // X: toggle color sorting enable/disable (WITH rumble)
     const bool x = Controller1.ButtonX.pressing();
     if (x && !g_prevX) {
-        g_sorterEnabledUser = !g_sorterEnabledUser;
-        setSorterEnabled(g_sorterEnabledUser);
-        Controller1.rumble(g_sorterEnabledUser ? "." : "-");
+        g_sorterEnabledUser = !g_sorterEnabledUser; //changes these to !
+        setSorterEnabled(!g_sorterEnabledUser);
+        Controller1.rumble(!g_sorterEnabledUser ? "." : "-");
         needsUpdate = true;
     }
     g_prevX = x;
