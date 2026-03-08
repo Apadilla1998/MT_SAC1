@@ -49,8 +49,8 @@ optical ballSensor(PORT18);
 // From your NEW Vision Utility JSON (brightness=10, signature ID=1)
 vex::vision::signature GOAL(
   1,
-  3359, 4429, 3894,
-  -3295, -2827, -3061,
+  4259, 4893, 4576,
+  -4353, -3579, -3966,
   2.5,
   0
 );
@@ -64,7 +64,7 @@ vex::vision::signature SIG_7(7, 0, 0, 0, 0, 0, 0, 2.5, 0);
 
 vex::vision VisionSensor(
   vex::PORT12,
-  10,
+  30,
   GOAL, SIG_2, SIG_3, SIG_4, SIG_5, SIG_6, SIG_7
 );
 

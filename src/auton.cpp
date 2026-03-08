@@ -691,8 +691,8 @@ static void HardCodedRight() {
     
 }
 
-static void SimpleAutonRight() {
-    MotionController m;
+static void Auton_SKILLS(){
+   MotionController m;
     m.setAutoCorrectEnabled(true);
     setSorterEnabled(false);  
 
@@ -766,9 +766,9 @@ static void SimpleAutonRight() {
     m.turnTo(180, 2000);
     //driveDistanceByMotors(19, 30, 3000);
     wings.toggle();
-    wait(50, msec);
+    wait(200, msec);
     wings.toggle();
-    m.drive(0.44, 2000, 40); //was 0.42
+    m.drive(0.42, 3000, 40); //was 0.44, 0.42, 0.40, 0.38
     wait(10, msec);
 
 
@@ -796,6 +796,14 @@ static void SimpleAutonRight() {
     reverseIntake(40);
     reverseOutake(40);
     wait(250, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
 
     runIntake(100);
     runOutake(80);
@@ -887,15 +895,92 @@ static void SimpleAutonRight() {
     driveDistanceByMotors(2, 17, 2000);
     wait(10, msec);
     driveDistanceByMotors(-3, 20, 2000); //was -6
-    wait(400, msec);
+    wait(900, msec);
+}
 
+
+static void SimpleAutonRight() {
+    MotionController m;
+    m.setAutoCorrectEnabled(true);
+    setSorterEnabled(false);  
+
+    // armMoveTo(239, 1000);
+
+//////////////////////////////////////////////////////////////// going towards the loader
+    m.driveHeading(-0.84, 2500, 50, 0);
+    wait(10, msec);
+    m.turnTo(90, 2000);
+    wait(10, msec);
+
+    ballLoader.toggles();
+    wait(1, sec); 
+
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    wait(10, msec);
+
+    m.driveHeadingCC(-0.301, 2000, 50, 90); //was -0.3302
+    wait(900, msec);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(400, msec);
 
     stopIntake();
     OuttakeA.stop();
     wait(10, msec);
+//////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////// going toward opposite side
+    driveDistanceByMotors(6, 30, 1000);
+    // reverseOutake(20);
+    // reverseIntake(20);
+    // wait(0.500, msec);
+
+    // stopIntake();
+    // stopOutake();
+    reverseIntake(20);
+    reverseOutake(20);
+    wait(0.250, msec);
+
+    stopIntake();
+    stopOutake();
+
+    // ballLoader.toggles();
+    runIntake(20);
+    m.turnTo(45, 1500);
+    wait(10, msec);
+
+    //driveDistanceByMotors(22, 20, 3000);
+    m.driveHeadingCC(0.55, 3000, 40, 45);
+    wait(10, msec);
+
+    m.turnTo(90, 1500);
+    m.driveHeading(2, 3000, 40, 90);
+    wait(10, msec);
+// /////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////turning towards goal and depositing
+
+    reverseIntake(40);
+    wait(200, msec);
+
+    stopIntake();
+    wings.toggle();
+    wait(10, msec);
 
     wings.toggle();
-    m.drive(0.5, 1000, 30);
+    wait(50, msec);
+    wings.toggle();
+    m.turnTo(180, 2000);
+    //driveDistanceByMotors(19, 30, 3000);
+    // wings.toggle();
+    // wait(200, msec);
+    // wings.toggle();
+    m.drive(0.42, 3000, 40); //was 0.44, 0.42, 0.40, 0.38
+    wait(10, msec);
+
+
+    m.turnTo(-90, 2000);
     visionAlignOnlyToCenterId(
         1,      // GOAL signature
         3000,
@@ -909,7 +994,146 @@ static void SimpleAutonRight() {
     );
     wait(0.800, msec);
 
-    m.drive(0.6, 2000, 30);
+// if (!seen) stopDrive(brake);
+
+    m.drive(0.50, 2000, 50);
+    // driveDistanceByMotors(20, 50, 2000);
+    m.addFix(-90);
+    driveDistanceByMotors(8, 100, 1500);
+
+    reverseIntake(40);
+    reverseOutake(40);
+    wait(250, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(1000, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    // ballLoader.toggles();
+    wait(1, sec); 
+
+    // visionAlignOnlyToCenterId(
+    //     1,      // GOAL signature
+    //     3000,
+    //     0.13,
+    //     0.0,
+    //     5,
+    //     6,
+    //     8,
+    //     158.0,
+    //     0.0
+    // );
+
+    // // driveDistanceByMotors(-0.6, 30, 2500);
+    // // driveDistanceByMotors(-23.6, 30, 3000);
+    wings.toggle();
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    wait(10, msec);
+
+    m.driveHeading(-0.8, 2000, 30, -90);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(500, msec);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(500, msec);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(100, msec);
+
+    driveDistanceByMotors(2, 17, 2000);
+    wait(10, msec);
+    driveDistanceByMotors(-3, 20, 2000); //was -6
+    wait(400, msec);
+
+
+    stopIntake();
+    OuttakeA.stop();
+    wait(10, msec);
+
+    wings.toggle();
+    m.drive(0.4, 2000, 30);
+    visionAlignOnlyToCenterId(
+        1,      // GOAL signature
+        3000,
+        0.13,
+        0.0,
+        5,
+        6,
+        8,
+        158.0,
+        0.0
+    );
+    wait(0.800, msec);
+
+    m.drive(0.75, 2000, 30);
     m.addFix(-90);
     driveDistanceByMotors(8, 100, 1500);
     
@@ -967,14 +1191,42 @@ static void SimpleAutonRight() {
 
     runIntake(100);
     runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
+    wait(500, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(100);
+    runOutake(80);
     wait(900, msec);
 
     stopIntake();
     stopOutake();
     wait(10, msec);
 
-    // driveDistanceByMotors(-2, 20, 1000);
-    wings.toggle();
+    runIntake(100);
+    runOutake(80);
+    wait(1200, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    driveDistanceByMotors(-5, 20, 2000);
+    //wings.toggle();
+
+    // driveDistanceByMotors(-0.75, 20, 1000);
+    driveDistanceByMotors(6, 20, 2000);
+
 
     // wings.toggle();
     // driveDistanceByMotors(-2, 50, 1000);
@@ -1331,6 +1583,7 @@ void runAutonomous() {
         case AutonRoutine::HARD_CODED_MESSUP_RIGHT2: HardCodedRightMessUp2(); break;
         case AutonRoutine::SHIT_SKILLS: ShitSkills(); break;
         case AutonRoutine::SKILLS2: skills2(); break;
+        case AutonRoutine::AUTON_SKILLS: Auton_SKILLS();
         default: break;
     }
 

@@ -70,7 +70,7 @@ static bool g_forceScreenUpdate = false;
 static int g_r1RumbleTimerMs = 0;
 
 // Color sorting enable/disable (X toggle)
-static bool g_sorterEnabledUser = true;
+static bool g_sorterEnabledUser = false;
 
 // Intake toggle mode
 enum class IntakeMode { OFF, INTAKE, SCORE, REVERSE };
@@ -401,8 +401,8 @@ static void handleToggles(bool& needsUpdate) {
     const bool x = Controller1.ButtonX.pressing();
     if (x && !g_prevX) {
         g_sorterEnabledUser = !g_sorterEnabledUser; //changes these to !
-        setSorterEnabled(!g_sorterEnabledUser);
-        Controller1.rumble(!g_sorterEnabledUser ? "." : "-");
+        setSorterEnabled(g_sorterEnabledUser);
+        Controller1.rumble(g_sorterEnabledUser ? "." : "-");
         needsUpdate = true;
     }
     g_prevX = x;
@@ -528,27 +528,27 @@ static void handleIntakeOuttake() {
 
   
     // Main outtake smoothing (unchanged)
-if (mode != IntakeMode::INTAKE) {
-    const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
-    const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
-    const double step = rate * kDt;
+    if (mode != IntakeMode::INTAKE) {
+        const bool increasingMag = (std::fabs(outtakeTarget) > std::fabs(g_outtakeCmd));
+        const double rate = increasingMag ? kOuttakeAccelPctPerS : kOuttakeDecelPctPerS;
+        const double step = rate * kDt;
 
-    double delta = outtakeTarget - g_outtakeCmd;
-    delta = clampD(delta, -step, step);
-    g_outtakeCmd += delta;
+        double delta = outtakeTarget - g_outtakeCmd;
+        delta = clampD(delta, -step, step);
+        g_outtakeCmd += delta;
 
-    if (std::fabs(g_outtakeCmd) < 1.0) {
-        stopOutake();
-        g_outtakeCmd = 0.0;
-    } else if (g_outtakeCmd > 0.0) {
-        runOutake((int)std::fabs(g_outtakeCmd));
+        if (std::fabs(g_outtakeCmd) < 1.0) {
+            stopOutake();
+            g_outtakeCmd = 0.0;
+        } else if (g_outtakeCmd > 0.0) {
+            runOutake((int)std::fabs(g_outtakeCmd));
+        } else {
+            reverseOutake((int)std::fabs(g_outtakeCmd));
+        }
     } else {
-        reverseOutake((int)std::fabs(g_outtakeCmd));
+        // L1 toggled intake: you control B/C manually
+        g_outtakeCmd = 0.0;
     }
-} else {
-    // L1 toggled intake: you control B/C manually
-    g_outtakeCmd = 0.0;
-}
 
   
     // OuttakeA control
@@ -582,6 +582,9 @@ void usercontrol() {
 
     LeftMotorGroup.setStopping(coast);
     RightMotorGroup.setStopping(coast);
+
+    g_sorterEnabledUser = false;
+    setSorterEnabled(false);
 
     updateControllerScreen();
 
