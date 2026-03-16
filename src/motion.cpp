@@ -31,31 +31,31 @@ double MotionController::angleDiffDeg(double targetDeg, double currentDeg) {
 }
 
 MotionController::MotionController()
-    : distPID_(25, 0.00, 0.3),
-      headPID_(0.25, 0.00, 0.000),
-      turnPID_(0.25, 0.00, 0.000)
+    : distPID_(28, 0.00, 0.38),
+      headPID_(0.30, 0.00, 0.0015),
+      turnPID_(0.34, 0.00, 0.0025)
 {
     distPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
-    distPID_.setDerivativeFilterTf(0.18);
+    distPID_.setDerivativeFilterTf(0.16);
     distPID_.setAntiWindupTau(0.15);
     distPID_.setErrorDeadband(0.010);
     distPID_.setOutputLimits(-100, 100);
 
     headPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
-    headPID_.setDerivativeFilterTf(0.10);
+    headPID_.setDerivativeFilterTf(0.08);
     headPID_.setAntiWindupTau(0.20);
     headPID_.setIntegralZone(0.0);
     headPID_.setIntegralLimits(-2.0, 2.0);
     headPID_.setErrorDeadband(0.3);
-    headPID_.setOutputLimits(-16, 16);
+    headPID_.setOutputLimits(-20, 20);
 
     turnPID_.setDerivativeMode(PID::DerivativeMode::OnMeasurement);
-    turnPID_.setDerivativeFilterTf(0.06);
+    turnPID_.setDerivativeFilterTf(0.05);
     turnPID_.setAntiWindupTau(0.18);
-    turnPID_.setIntegralZone(15.0);
+    turnPID_.setIntegralZone(12.0);
     turnPID_.setIntegralLimits(-50.0, 50.0);
     turnPID_.setErrorDeadband(0.2);
-    turnPID_.setOutputLimits(-60, 60);
+    turnPID_.setOutputLimits(-75, 75);
 }
 
 void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeedPct, double holdHeadingDeg) {
@@ -78,24 +78,23 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
     const double minCap = 10.0;
     const double stopBand = 0.010;
 
-    // stop latch tuning (anti-overshoot + anti-oscillation)
-    const double stopEnter = 0.020;    // was 0.030
-    const double stopExit  = 0.035;    // was 0.055 (slightly wider than enter to avoid relatch chatter)
-    const int    stopSettleMs = 80;    // was 120
+    const double stopEnter = 0.020;
+    const double stopExit  = 0.035;
+    const int    stopSettleMs = 80;
 
-    const double latchSpeedEnter = 14.0; // allow latching at a higher speed once close/crossed
-    const double noReverseBand   = 0.060; // don't command backing up when this close after crossing
+    const double latchSpeedEnter = 14.0;
+    const double noReverseBand   = 0.060;
 
     bool stopLatch = false;
     double distErrPrev = distM;
     bool crossed = false;
 
     double vCmd = 0.0;
-    const double dvPerSec = 350.0;
+    const double dvPerSec = 550.0;
     const double dvMax = dvPerSec * dt;
 
     double wCmd = 0.0;
-    const double dwPerSec = 260.0;
+    const double dwPerSec = 320.0;
     const double dwMax = dwPerSec * dt;
 
     while (t.time(msec) < timeoutMs) {
@@ -107,7 +106,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
         distErrPrev = distErr;
 
         if (!stopLatch) {
-            // once we've crossed, allow latching even if we're still moving
             const bool canLatch = (std::fabs(vCmd) < latchSpeedEnter) || crossed;
 
             if (canLatch && (std::fabs(distErr) < stopEnter || (crossed && std::fabs(distErr) < stopExit))) {
@@ -132,7 +130,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
 
             const double headAbs = std::fabs(headErr);
             if (headAbs < 1.0) {
-                // brake instead of coasting at 0
                 w = 0.0;
                 wCmd = 0.0;
                 stopDrive(brake);
@@ -165,7 +162,6 @@ void MotionController::driveHeading(double distM, int timeoutMs, double maxSpeed
             }
         }
 
-        // prevent ping-pong: if we've crossed and we're close, don't back up
         if (crossed && std::fabs(distErr) < noReverseBand && (v * distErr) < 0.0) {
             v = 0.0;
             vCmd = 0.0;
@@ -228,8 +224,8 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
     const int dtMs = 10;
     const double dt = dtMs / 1000.0;
 
-    const double lookaheadM = 0.20;
-    const double maxOffDeg = 18.0;
+    const double lookaheadM = 0.18;
+    const double maxOffDeg = 22.0;
 
     const double posTolM = 0.02;
     const double latTolM = 0.015;
@@ -239,11 +235,11 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
     int settledMs = 0;
 
     double vCmd = 0.0;
-    const double dvPerSec = 450.0;
+    const double dvPerSec = 650.0;
     const double dvMax = dvPerSec * dt;
 
     double wCmd = 0.0;
-    const double dwPerSec = 260.0;
+    const double dwPerSec = 320.0;
     const double dwMax = dwPerSec * dt;
 
     while (t.time(msec) < timeoutMs) {
@@ -253,7 +249,6 @@ void MotionController::driveHeadingCC(double distM, int timeoutMs, double maxSpe
         double fwd = dx * std::sin(hRad) + dy * std::cos(hRad);
         double lat = dx * std::cos(hRad) - dy * std::sin(hRad);
 
-        // distance-based cap + stiction floor (fixes CC “slowness”)
         double cap = 10.0 + 200.0 * std::fabs(fwd);
         cap = std::min(cap, maxSpeedPct);
         distPID_.setOutputLimits(-cap, cap);
@@ -579,7 +574,6 @@ void MotionController::addFix(double desired_heading,
                               double kMaxLat,
                               double kMaxFwd,
                               int timeoutMs) {
-    // kept only to match your requested signature
     (void)kMaxLat;
     (void)kMaxFwd;
 
@@ -590,12 +584,9 @@ void MotionController::addFix(double desired_heading,
         const double h = inertial_sensor.heading(deg);
         const double hErr = angleDiffDeg(desired_heading, h);
 
-        // close enough, stop early
         if (std::fabs(hErr) < 1.0) break;
 
-        // small corrective turn
         if (hErr > 0.0) {
-            // if this turns the wrong way on your robot, swap the signs below
             tankDrive(15, -10);
         } else {
             tankDrive(-10, 15);

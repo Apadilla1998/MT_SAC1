@@ -20,7 +20,8 @@ enum class AutonRoutine {
     HARD_CODED_MESSUP_RIGHT2,
     SHIT_SKILLS,
     SKILLS2,
-    AUTON_SKILLS
+    AUTON_SKILLS,
+    BAKERS
 };
 
 extern AutonRoutine selectedAuton;

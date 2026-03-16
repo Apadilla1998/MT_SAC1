@@ -28,7 +28,7 @@ void resetOdometry() {
     inertial_sensor.setHeading(0, deg);
     inertial_sensor.setRotation(0, deg);
 
-    verticalRot.resetPosition();
+    verticalRot.resetPosition();   
     horizontalRot.resetPosition();
 
     s.prevV_m = degToMeters(verticalDeg());

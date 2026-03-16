@@ -40,6 +40,7 @@ AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT; //HARD_CODED_MESS
     //     stopDrive(brake);
     // }
 
+
 static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs) {
     const double wheelDiamIn = 3.25;
     const double wheelCircIn = M_PI * wheelDiamIn;
@@ -64,6 +65,96 @@ static void driveDistanceByMotors(double distIn, double speedPct, int timeoutMs)
 
     stopDrive(brake);
 }
+
+static void setWingsState(bool desiredOut, bool &wingsOut) {
+    if (wingsOut != desiredOut) {
+        wings.toggle();
+        wingsOut = desiredOut;
+        wait(120, msec);
+    }
+}
+
+static void wingFlick(bool &wingsOut) {
+    // matches your old "toggle, toggle, toggle" idea, but controlled
+    if (!wingsOut) {
+        wings.toggle();
+        wingsOut = true;
+        wait(40, msec);
+    }
+
+    wings.toggle();
+    wingsOut = false;
+    wait(50, msec);
+
+    wings.toggle();
+    wingsOut = true;
+    wait(80, msec);
+}
+
+static void scoreBurst(int cycles, int onMs = 250, int offMs = 60) {
+    for (int i = 0; i < cycles; i++) {
+        runIntake(100);
+        runOutake(80);
+        wait(onMs, msec);
+
+        stopIntake();
+        stopOutake();
+        wait(offMs, msec);
+    }
+}
+
+static void loaderPeck(int cycles,
+                       double fwdIn = 2.0,
+                       double backIn = -3.0,
+                       double fwdPct = 22,
+                       double backPct = 28,
+                       int pauseMs = 120) {
+    for (int i = 0; i < cycles; i++) {
+        driveDistanceByMotors(fwdIn, fwdPct, 1000);
+        wait(10, msec);
+        driveDistanceByMotors(backIn, backPct, 1000);
+        wait(pauseMs, msec);
+    }
+}
+
+static void scoreTopGoal(MotionController &m, bool &wingsOut, int burstCycles = 6, int finalFeedMs = 700) {
+    setWingsState(true, wingsOut);
+
+    m.drive(0.40, 1600, 40);
+
+    visionAlignOnlyToCenterId(
+        1,
+        1600,
+        0.16,
+        0.0,
+        6,
+        8,
+        6,
+        158.0,
+        0.0
+    );
+
+    m.drive(0.75, 1700, 50);
+    m.addFix(-90);
+
+    // final shove: faster than a super-slow approach, but more controlled than 100%
+    driveDistanceByMotors(8, 60, 900);
+
+    reverseIntake(40);
+    reverseOutake(40);
+    wait(150, msec);
+
+    scoreBurst(burstCycles, 250, 60);
+
+    runIntake(100);
+    runOutake(80);
+    wait(finalFeedMs, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+}
+
 
 static void HardCodedRightSkills(){
     MotionController m;
@@ -1561,6 +1652,110 @@ static void Trash(){
 ///////////////////////////////////////////////////////////////////////
 }
 
+
+static void SkillsRun() {
+    MotionController m;
+    m.setAutoCorrectEnabled(true);
+    setSorterEnabled(false);
+
+    bool wingsOut = false;
+
+    // armMoveTo(239, 1000);
+
+    //////////////////////////////////////////////////////////////// going towards the loader
+    m.driveHeading(-0.84, 2200, 65, 0);
+    wait(10, msec);
+
+    m.turnTo(90, 1800);
+    wait(10, msec);
+
+    ballLoader.toggles();
+    wait(700, msec);
+
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    wait(10, msec);
+
+    m.driveHeadingCC(-0.301, 1800, 55, 90);
+    wait(250, msec);
+
+    loaderPeck(1, 2.0, -3.0, 22, 28, 150);
+
+    stopIntake();
+    OuttakeA.stop();
+    wait(10, msec);
+
+    /////////////////////////////////////////////////////// going toward opposite side
+    driveDistanceByMotors(6, 35, 900);
+
+    reverseIntake(20);
+    reverseOutake(20);
+    wait(150, msec);
+
+    stopIntake();
+    stopOutake();
+    wait(10, msec);
+
+    runIntake(20);
+
+    m.turnTo(45, 1300);
+    wait(10, msec);
+
+    m.driveHeadingCC(0.55, 2500, 50, 45);
+    wait(10, msec);
+
+    m.turnTo(90, 1300);
+    wait(10, msec);
+
+    m.driveHeading(2.0, 2600, 50, 90);
+    wait(10, msec);
+
+    ////////////////////////////////////////////////// turning towards goal and depositing
+    reverseIntake(40);
+    wait(150, msec);
+    stopIntake();
+    wait(10, msec);
+
+    wingFlick(wingsOut);
+
+    m.turnTo(180, 1800);
+    wait(10, msec);
+
+    m.drive(0.42, 2200, 45);
+    wait(10, msec);
+
+    m.turnTo(-90, 1700);
+    wait(10, msec);
+
+    scoreTopGoal(m, wingsOut, 6, 700);
+
+    wait(150, msec);
+
+    //////////////////////////////////////////////////////////////// going back to loader
+    setWingsState(false, wingsOut);
+
+    runIntake(100);
+    OuttakeA.spin(forward, 100, percent);
+    wait(10, msec);
+
+    m.driveHeading(-0.8, 1700, 55, -90);
+    wait(100, msec);
+
+    loaderPeck(4, 2.0, -3.0, 22, 28, 120);
+
+    stopIntake();
+    OuttakeA.stop();
+    wait(10, msec);
+
+    //////////////////////////////////////////////////////////////// going back to top goal
+    scoreTopGoal(m, wingsOut, 7, 900);
+
+    driveDistanceByMotors(-5, 20, 1500);
+    wait(10, msec);
+
+    driveDistanceByMotors(6, 25, 1500);
+}
+
 void runAutonomous() {
     setSorterEnabled(false);
 
@@ -1583,7 +1778,8 @@ void runAutonomous() {
         case AutonRoutine::HARD_CODED_MESSUP_RIGHT2: HardCodedRightMessUp2(); break;
         case AutonRoutine::SHIT_SKILLS: ShitSkills(); break;
         case AutonRoutine::SKILLS2: skills2(); break;
-        case AutonRoutine::AUTON_SKILLS: Auton_SKILLS();
+        case AutonRoutine::BAKERS: Auton_SKILLS(); break;
+        case AutonRoutine::AUTON_SKILLS: SkillsRun(); break;
         default: break;
     }
 
