@@ -27,7 +27,7 @@ static constexpr double kDriveDecelPctPerS = 1500.0;
 static constexpr double kDt               = 0.025;
 
 static constexpr double kDriveScaleFast = 1.0; //was 60
-static constexpr double kTurnScaleFast  = 0.50;
+static constexpr double kTurnScaleFast  = 0.25;
 static constexpr double kTurnMaxPct     = 80.0;
 static constexpr double kTurnBoostAtFullFwd = 0.25;
 

@@ -12,7 +12,7 @@
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::SIMPLE_AUTON_RIGHT; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2, IMPLE_AUTON_RIGHT
+AutonRoutine selectedAuton = AutonRoutine::WIP; //HARD_CODED_MESSUP_RIGHT, HARD_CODED_RIGHT, HARD_CODED_MESSUP_RIGHT2, IMPLE_AUTON_RIGHT
 
 
 
@@ -1756,6 +1756,20 @@ static void SkillsRun() {
     driveDistanceByMotors(6, 25, 1500);
 }
 
+static void wip(){
+    MotionController m;
+    m.setAutoCorrectEnabled(true);
+    setSorterEnabled(false);
+
+//    while(true){
+//     visionAlignOnlyToCenterId(1);
+//    }
+
+// m.drive(0.5, 5000, 20);
+// m.turnBy(90, 2000);
+
+
+}
 void runAutonomous() {
     setSorterEnabled(false);
 
@@ -1780,6 +1794,7 @@ void runAutonomous() {
         case AutonRoutine::SKILLS2: skills2(); break;
         case AutonRoutine::BAKERS: Auton_SKILLS(); break;
         case AutonRoutine::AUTON_SKILLS: SkillsRun(); break;
+        case AutonRoutine::WIP: wip(); break;
         default: break;
     }
 

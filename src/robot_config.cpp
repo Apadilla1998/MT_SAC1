@@ -10,24 +10,26 @@ brain Brain;
 controller Controller1;
 
 // ---------------- Drive ----------------
-motor LeftA(PORT10, ratio6_1, false);
-motor LeftB(PORT9,  ratio6_1, false);
-motor LeftC(PORT8,  ratio6_1, true);  // bac
-motor_group LeftMotorGroup(LeftA, LeftB, LeftC);
+motor LeftA(PORT3, ratio6_1, false);
+motor LeftB(PORT4,  ratio6_1, false);
+motor LeftC(PORT5,  ratio6_1, false);
+motor LeftD(PORT6, ratio6_1, false);
+motor_group LeftMotorGroup(LeftA, LeftB, LeftC, LeftD);
 
-motor RightA(PORT1, ratio6_1, true);
-motor RightB(PORT2, ratio6_1, true);
-motor RightC(PORT3, ratio6_1, false); // bacl
-motor_group RightMotorGroup(RightA, RightB, RightC);
+motor RightA(PORT7, ratio6_1, true);
+motor RightB(PORT8, ratio6_1, true);
+motor RightC(PORT9, ratio6_1, true);
+motor RightD(PORT10, ratio6_1, true);
+motor_group RightMotorGroup(RightA, RightB, RightC, RightD);
 
 // ---------------- Intake ----------------
-motor MainIntake(PORT20, ratio6_1, false);
-motor ColorIntake(PORT19, ratio6_1, false);
+motor MainIntake(PORT2, ratio6_1, true);
+motor ColorIntake(PORT1, ratio6_1, false);
 
 // ---------------- Outtake ----------------
-motor OuttakeA(PORT11, ratio6_1, false); // first one
-motor OuttakeB(PORT5,  ratio6_1, false); // towards end
-motor OuttakeC(PORT16, ratio6_1, false); // top one
+motor OuttakeA(PORT20, ratio6_1, true); // first one
+motor OuttakeB(PORT1,  ratio6_1, false); // towards end
+motor OuttakeC(PORT1, ratio6_1, false); // top one
 motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
 
 potV2 Descore(Brain.ThreeWirePort.D);
@@ -37,20 +39,19 @@ digital_out wingsPiston(Brain.ThreeWirePort.A);
 digital_out loader(Brain.ThreeWirePort.B);
 
 // ---------------- Sensors ----------------
-inertial inertial_sensor(PORT21);
+inertial inertial_sensor(PORT18);
 
-rotation verticalRot(PORT7, true);     // was true
-rotation horizontalRot(PORT6, false);
+rotation verticalRot(PORT19, true);     // was true
+rotation horizontalRot(PORT1, false);
 
-optical ballSensor(PORT18);
+optical ballSensor(PORT1);
 // optical ballSensor2(PORT14);
 
 // ---------------- Vision ----------------
-// From your NEW Vision Utility JSON (brightness=10, signature ID=1)
 vex::vision::signature GOAL(
   1,
-  4259, 4893, 4576,
-  -4353, -3579, -3966,
+  6045, 6711, 6378,
+  -3005, -2555, -2780,
   2.5,
   0
 );
@@ -63,7 +64,7 @@ vex::vision::signature SIG_6(6, 0, 0, 0, 0, 0, 0, 2.5, 0);
 vex::vision::signature SIG_7(7, 0, 0, 0, 0, 0, 0, 2.5, 0);
 
 vex::vision VisionSensor(
-  vex::PORT12,
+  vex::PORT8,
   30,
   GOAL, SIG_2, SIG_3, SIG_4, SIG_5, SIG_6, SIG_7
 );
