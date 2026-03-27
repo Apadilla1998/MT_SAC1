@@ -9,9 +9,7 @@
 
 using namespace vex;
 
-// ============================================================
-//  Tunables / Constants
-// ============================================================
+// Drive tuning
 static constexpr double kFwdCurve  = 0.20;
 static constexpr double kTurnCurve = 0.250;
 
@@ -20,26 +18,31 @@ static constexpr double kRightBias = 1.00;
 
 static constexpr double kDriveAccelPctPerS = 2000.0;
 static constexpr double kDriveDecelPctPerS = 1500.0;
+
+// Smooth turn slew so turning does not snap at high speed
+static constexpr double kTurnAccelPctPerS  = 700.0;
+static constexpr double kTurnDecelPctPerS  = 900.0;
+
 static constexpr double kDt                = 0.025;
 
-static constexpr double kDriveScaleFast      = 1.0;
-static constexpr double kTurnScaleFast       = 0.25;
-static constexpr double kTurnMaxPct          = 80.0;
-static constexpr double kTurnBoostAtFullFwd  = 0.25;
+static constexpr double kDriveScaleFast    = 1.0;
+static constexpr double kTurnScaleFast     = 0.40;
+static constexpr double kTurnMaxPct        = 100.0;
 
-static constexpr int    kDeadbandPct = 0;
-static constexpr int    kDriveUnlockJoyThreshPct = 8;
+// Reduce turn slightly as forward speed rises so the arcade mix
+// does not over-normalize and make the robot feel like it slows down to turn
+static constexpr double kTurnReduceAtFullFwd = 0.35;
+
+static constexpr int kDeadbandPct = 0;
+static constexpr int kDriveUnlockJoyThreshPct = 8;
 
 static constexpr int kIntakePct  = 100;
-static constexpr int kReversePct = 100;   // R2 reverse is always full power
+static constexpr int kReversePct = 100;
 
-// R1 = 100% drivetrain override
 static constexpr double kDriveScaleR1 = 1.00;
 static constexpr double kTurnScaleR1  = 1.00;
 
-// ============================================================
-//  State
-// ============================================================
+// State
 static double g_fwdCmd = 0.0;
 static double g_trnCmd = 0.0;
 
@@ -48,7 +51,6 @@ static bool g_prevB    = false, g_prevL1 = false;
 static bool g_prevDown = false;
 static bool g_prevLeft = false, g_prevRight = false;
 
-static bool g_isFast   = true;
 static bool g_showOdom = false;
 
 static int  g_screenTimerMs = 0;
@@ -61,13 +63,9 @@ static bool g_forceScreenUpdate = false;
 static int  g_r1RumbleTimerMs   = 0;
 static bool g_sorterEnabledUser = false;
 
-// Simplified intake mode — no outtake, no SCORE
 enum class IntakeMode { OFF, INTAKE, REVERSE };
 static IntakeMode g_intakeMode = IntakeMode::OFF;
 
-// ============================================================
-//  Helpers
-// ============================================================
 static inline double applyCurvePct(double inputPct, double curve) {
     const double v = inputPct / 100.0;
     return ((curve * std::pow(v, 3)) + ((1.0 - curve) * v)) * 100.0;
@@ -104,9 +102,6 @@ static inline double readTurnAxisPct() {
     return Controller1.Axis1.position(pct);
 }
 
-// ============================================================
-//  Driver screen
-// ============================================================
 static double filteredHueManual() {
     static double buf[5] = {0, 0, 0, 0, 0};
     static int idx = 0;
@@ -224,9 +219,6 @@ static void disengageDriveHold() {
     g_driveStopped = true;
 }
 
-// ============================================================
-//  Drive — turn direction inverted vs. previous build
-// ============================================================
 static void handleDrive() {
     if (g_driveLocked) {
         const double rawFwd  = readForwardAxisPct();
@@ -269,10 +261,16 @@ static void handleDrive() {
     g_fwdCmd = slewTo(fwdReq, g_fwdCmd, kDriveAccelPctPerS, kDriveDecelPctPerS);
 
     const double fwdMag = std::fabs(g_fwdCmd);
-    const double boost  = 1.0 + kTurnBoostAtFullFwd * (fwdMag / 100.0);
-    g_trnCmd = clampD(trnReq * boost, -turnMax, turnMax);
 
-    // Turn direction inverted: subtract trnCmd on left, add on right
+    // Instead of boosting turn harder at full speed, reduce it slightly.
+    // This keeps the drive mix smoother and avoids the feeling that the
+    // robot suddenly loses speed when you try to steer at max throttle.
+    const double turnGain = 1.0 - (kTurnReduceAtFullFwd * (fwdMag / 100.0));
+    const double trnTarget = clampD(trnReq * turnGain, -turnMax, turnMax);
+
+    // Slew turning too so steering changes are smooth at speed
+    g_trnCmd = slewTo(trnTarget, g_trnCmd, kTurnAccelPctPerS, kTurnDecelPctPerS);
+
     double lRaw = (g_fwdCmd - g_trnCmd) * kLeftBias;
     double rRaw = (g_fwdCmd + g_trnCmd) * kRightBias;
 
@@ -297,9 +295,6 @@ static void handleDrive() {
     RightMotorGroup.spin(forward, rOut, pct);
 }
 
-// ============================================================
-//  Toggles (Up/X/Y/B/Down)
-// ============================================================
 static void handleToggles(bool& needsUpdate) {
     const bool up = Controller1.ButtonUp.pressing();
     if (up && !g_prevUp) {
@@ -346,11 +341,6 @@ static void handleToggles(bool& needsUpdate) {
     g_prevDown = down;
 }
 
-// ============================================================
-//  Intake
-//  L1 toggle → run intake forward at kIntakePct
-//  R2 held   → reverse intake at kReversePct (100%)
-// ============================================================
 static void handleIntake() {
     const bool l1 = Controller1.ButtonL1.pressing();
     const bool r2 = Controller1.ButtonR2.pressing();
@@ -362,11 +352,9 @@ static void handleIntake() {
     }
     g_prevL1 = l1;
 
-    // R2 overrides the toggle while held
     IntakeMode mode = g_intakeMode;
     if (r2) mode = IntakeMode::REVERSE;
 
-    // Sorter only runs when intake is forward and user has enabled it
     const bool sorterShouldRun =
         g_sorterEnabledUser && (mode == IntakeMode::INTAKE);
     setSorterEnabled(sorterShouldRun);
@@ -386,18 +374,11 @@ static void handleIntake() {
     }
 }
 
-// ============================================================
-//  Lever Arm — L2 deploys, release returns to origin
-//  Pot-based proportional control lives in descore.cpp
-// ============================================================
 static void handleLeverArm() {
     const bool l2 = Controller1.ButtonL2.pressing();
     updateLeverArm(l2);
 }
 
-// ============================================================
-//  Descore Arm — Left / Right d-pad, R1 for boost
-// ============================================================
 static void handleDescore() {
     const bool boost = Controller1.ButtonR1.pressing();
     const int  armPct = boost ? 100 : 25;
@@ -416,9 +397,6 @@ static void handleDescore() {
     else             stopArm();
 }
 
-// ============================================================
-//  Main driver control loop
-// ============================================================
 void usercontrol() {
     ballSensor.setLightPower(100, percent);
 
@@ -448,7 +426,8 @@ void usercontrol() {
         handleIntake();
 
         handleR1ContinuousRumble();
-        screenTick(needsUpdate);
+        //screenTick(needsUpdate);
+        printArmAngleControllerUpdate();
 
         wait(20, msec);
     }

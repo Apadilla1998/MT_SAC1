@@ -5,31 +5,16 @@
 
 using namespace vex;
 
-// ============================================================
-//  Lever Arm — pot-based position control (LeverArmPot on H)
-// ============================================================
+// Lever arm positions
+static constexpr double kLeverOriginDeg   = 12.9; //0.5
+static constexpr double kLeverDeployedDeg = 9.3;
 
-// Tune these two angles to match your physical robot.
-// Read LeverArmPot.angle(deg) with the arm at each position to calibrate.
-static constexpr double kLeverOriginDeg   = 10.0;   // stored / stowed position
-static constexpr double kLeverDeployedDeg = 105.0;  // fully deployed position
-
-// Proportional gain — increase if response is sluggish, decrease if it oscillates
+// Basic control tuning
 static constexpr double kLeverKp          = 0.85;
-
-// Dead-band: within this many degrees of target, stop and hold
 static constexpr double kLeverDeadbandDeg = 3.0;
-
-// Output clamp — keeps the motor from overpowering the mechanism
 static constexpr double kLeverMaxPct      = 75.0;
 
-// --------------------------------------------------------
-// updateLeverArm
-//   deployed = true  → move to kLeverDeployedDeg
-//   deployed = false → return to kLeverOriginDeg
-//
-// Call this every control loop tick (≥ 20 ms).
-// --------------------------------------------------------
+// Move lever to deployed or origin position
 void updateLeverArm(bool deployed) {
     const double targetDeg  = deployed ? kLeverDeployedDeg : kLeverOriginDeg;
     const double currentDeg = LeverArmPot.angle(deg);
@@ -44,23 +29,21 @@ void updateLeverArm(bool deployed) {
     output = clampD(output, -kLeverMaxPct, kLeverMaxPct);
 
     if (output > 0.0) {
-        LeverArm.spin(fwd,     std::fabs(output), pct);
+        LeverArm.spin(fwd, std::fabs(output), pct);
     } else {
         LeverArm.spin(reverse, std::fabs(output), pct);
     }
 }
 
-// Call once at startup if you want the arm to snap to origin immediately
+// Hold lever at startup
 void initLeverArm() {
     LeverArm.stop(hold);
 }
 
-// ============================================================
-//  Descore Arm — print current pot angle to the controller
-//  (uses DescorePot on G)
-// ============================================================
+// Show descore arm angle on controller
 void printArmAngleControllerUpdate() {
-    const double angle = DescorePot.angle(deg);
+    //const double angle = DescorePot.angle(deg);
+    const double angle = LeverArmPot.angle(deg);
 
     Controller1.Screen.clearLine(3);
     Controller1.Screen.setCursor(3, 1);
