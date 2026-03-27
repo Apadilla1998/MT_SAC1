@@ -1,66 +1,48 @@
-// ============================
-// robot_config.h
-// ============================
 #ifndef ROBOT_CONFIG_H
 #define ROBOT_CONFIG_H
 
 #include "vex.h"
-#include <cmath>
 
-using namespace vex;
-
-// Brain / Controller
-extern brain Brain;
-extern controller Controller1;
+// Core
+extern vex::brain Brain;
+extern vex::controller Controller1;
 
 // Drive
-extern motor LeftA;
-extern motor LeftB;
-extern motor LeftC;
-extern motor_group LeftMotorGroup;
+extern vex::motor LeftA;
+extern vex::motor LeftB;
+extern vex::motor LeftC;
+extern vex::motor LeftD;
+extern vex::motor_group LeftMotorGroup;
 
-extern motor RightA;
-extern motor RightB;
-extern motor RightC;
-extern motor_group RightMotorGroup;
+extern vex::motor RightA;
+extern vex::motor RightB;
+extern vex::motor RightC;
+extern vex::motor RightD;
+extern vex::motor_group RightMotorGroup;
 
 // Intake / Outtake
-extern motor MainIntake;
-extern motor ColorIntake;
+extern vex::motor Intake;
+extern vex::motor LeverArm;
 
-extern motor OuttakeA;
-extern motor OuttakeB;
-extern motor OuttakeC;
-extern motor_group Outtake;
+// Descore
+extern vex::motor DescoreMotor;
 
-extern potV2 Descore;
+// Sensors
+extern vex::inertial inertial_sensor;
+extern vex::rotation verticalRot;
+extern vex::optical ballSensor;
 
-// Pneumatics
-extern digital_out wingsPiston;
-extern digital_out loader;
-
-// IMU + tracking
-extern inertial inertial_sensor;
-extern rotation verticalRot;
-extern rotation horizontalRot;
-
-// Vision (signatures + sensor)
 extern vex::vision::signature GOAL;
-extern vex::vision::signature SIG_2;
-extern vex::vision::signature SIG_3;
-extern vex::vision::signature SIG_4;
-extern vex::vision::signature SIG_5;
-extern vex::vision::signature SIG_6;
-extern vex::vision::signature SIG_7;
+extern vex::vision VisionSensor;
 
-extern vision VisionSensor;
+// Pneumatics / 3-wire
+extern vex::digital_out wingsPiston;
+extern vex::digital_out loader;
+extern vex::digital_out OuttakePiston;
 
-// Other sensors
-extern optical ballSensor;
-// extern optical ballSensor2;
-
-// Other motors
-extern motor DescoreMotor;
+extern vex::potV2 ColorSort;
+extern vex::potV2 DescorePot;
+extern vex::potV2 LeverArmPot;
 
 // Config constants
 namespace config {

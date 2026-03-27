@@ -1,6 +1,3 @@
-// ============================
-// sensors.h
-// ============================
 #ifndef SENSORS_H
 #define SENSORS_H
 
@@ -24,7 +21,6 @@ inline void initSensors() {
     inertial_sensor.setRotation(0, deg);
 
     verticalRot.resetPosition();
-    horizontalRot.resetPosition();
 }
 
 inline double headingDeg() {
@@ -35,7 +31,8 @@ inline double rotationDeg() {
     return inertial_sensor.rotation(deg);
 }
 
-inline double verticalDeg()   { return verticalRot.position(deg); }
-inline double horizontalDeg() { return horizontalRot.position(deg); }
+inline double verticalDeg() {
+    return verticalRot.position(deg);
+}
 
 #endif

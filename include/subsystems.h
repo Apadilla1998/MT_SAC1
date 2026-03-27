@@ -1,12 +1,15 @@
-#ifndef SUBSYSTEMS_H
-#define SUBSYSTEMS_H
+#pragma once
+#include "robot_config.h"
 
-#include "vex.h"
-
-enum Alliance { RED, BLUE };
-
+// ============================================================
+//  Alliance
+// ============================================================
+enum class Alliance { RED, BLUE };
 extern Alliance myAlliance;
 
+// ============================================================
+//  Pneumatic subsystems
+// ============================================================
 class Wings {
 public:
     void toggle();
@@ -25,28 +28,36 @@ private:
     bool state = false;
 };
 
-extern Wings wings;
+extern Wings     wings;
 extern BallLoader ballLoader;
 
+// ============================================================
+//  Sorter
+// ============================================================
 extern volatile bool g_sorterEnabled;
+
 void setSorterEnabled(bool enabled);
 
-void runIntake(double speedPct);
-void reverseIntake(double speedPct);
-void stopIntake();
-
-void runOutake(double speedPct);
-void reverseOutake(double speedPct);
-void stopOutake();
-
-void moveArmRight(double speedPct);
-void moveArmLeft(double speedPct);
-void stopArm();
-
-void runIntakeAuto(double speedPct);
-void reverseIntakeAuto(double speedPct);
-void stopIntakeAuto();
-
+// Background task — register with vex::task in main.cpp
 int intakeTaskFn();
 
-#endif
+// ============================================================
+//  Intake
+// ============================================================
+void runIntake    (double speedPct);
+void reverseIntake(double speedPct);
+void stopIntake   ();
+
+// ============================================================
+//  Descore arm (DescoreMotor)
+// ============================================================
+void moveArmRight(double speedPct);
+void moveArmLeft (double speedPct);
+void stopArm     ();
+
+// ============================================================
+//  Autonomous helpers
+// ============================================================
+void runIntakeAuto    (double speedPct);
+void reverseIntakeAuto(double speedPct);
+void stopIntakeAuto   ();

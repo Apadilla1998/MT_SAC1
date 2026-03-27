@@ -22,32 +22,21 @@ motor RightC(PORT9, ratio6_1, true);
 motor RightD(PORT10, ratio6_1, true);
 motor_group RightMotorGroup(RightA, RightB, RightC, RightD);
 
-// ---------------- Intake ----------------
-motor MainIntake(PORT2, ratio6_1, true);
-motor ColorIntake(PORT1, ratio6_1, false);
 
-// ---------------- Outtake ----------------
-motor OuttakeA(PORT20, ratio6_1, true); // first one
-motor OuttakeB(PORT1,  ratio6_1, false); // towards end
-motor OuttakeC(PORT1, ratio6_1, false); // top one
-motor_group Outtake(OuttakeA, OuttakeB, OuttakeC);
+// ---------------- Intake and Outtake ----------------
+motor LeverArm(PORT20, ratio6_1, true);
+motor Intake(PORT2, ratio6_1, true);
 
-potV2 Descore(Brain.ThreeWirePort.D);
 
-// ---------------- Pneumatics ----------------
-digital_out wingsPiston(Brain.ThreeWirePort.A);
-digital_out loader(Brain.ThreeWirePort.B);
+//------------------Descore------------------
+motor DescoreMotor(PORT11, ratio6_1, true);
 
 // ---------------- Sensors ----------------
-inertial inertial_sensor(PORT18);
+inertial inertial_sensor(PORT17);
+rotation verticalRot(PORT16, true);     // was true
 
-rotation verticalRot(PORT19, true);     // was true
-rotation horizontalRot(PORT1, false);
-
-optical ballSensor(PORT1);
+optical ballSensor(PORT18);
 // optical ballSensor2(PORT14);
-
-// ---------------- Vision ----------------
 vex::vision::signature GOAL(
   1,
   6045, 6711, 6378,
@@ -56,21 +45,17 @@ vex::vision::signature GOAL(
   0
 );
 
-vex::vision::signature SIG_2(2, 0, 0, 0, 0, 0, 0, 2.5, 0);
-vex::vision::signature SIG_3(3, 0, 0, 0, 0, 0, 0, 2.5, 0);
-vex::vision::signature SIG_4(4, 0, 0, 0, 0, 0, 0, 2.5, 0);
-vex::vision::signature SIG_5(5, 0, 0, 0, 0, 0, 0, 2.5, 0);
-vex::vision::signature SIG_6(6, 0, 0, 0, 0, 0, 0, 2.5, 0);
-vex::vision::signature SIG_7(7, 0, 0, 0, 0, 0, 0, 2.5, 0);
+vex::vision VisionSensor(vex::PORT19, 30, GOAL);
 
-vex::vision VisionSensor(
-  vex::PORT8,
-  30,
-  GOAL, SIG_2, SIG_3, SIG_4, SIG_5, SIG_6, SIG_7
-);
+// ---------------- Others ----------------
+digital_out wingsPiston(Brain.ThreeWirePort.C);
+digital_out loader(Brain.ThreeWirePort.E);
+digital_out OuttakePiston(Brain.ThreeWirePort.D);
 
-// ---------------- Other motors ----------------
-motor DescoreMotor(PORT17, ratio18_1, true);
+potV2 ColorSort(Brain.ThreeWirePort.F);
+potV2 DescorePot(Brain.ThreeWirePort.G);
+potV2 LeverArmPot(Brain.ThreeWirePort.H);
+
 
 // ---------------- Config ----------------
 namespace config {

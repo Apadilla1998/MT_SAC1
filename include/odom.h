@@ -9,9 +9,7 @@ struct Pose {
 
 extern Pose robotPose;
 
-int odomTaskFn();
-int odomTaskFn(void*);
-
 void resetOdometry();
+int odomTaskFn();
 
 #endif
