@@ -99,10 +99,10 @@ static inline bool visionAlignOnlyToCenterId( //aligns with only one detected ob
 static inline bool visionAlignOnlyToCenterIdTwo(
     uint32_t sigId,
     int timeoutMs = 3000,
-    double kP = 0.20,
+    double kP = 0.13,
     double kD = 0.00,
     int deadbandPx = 5,
-    double maxTurnPct = 12,
+    double maxTurnPct = 6,
     int lostFramesToFail = 8,
     double centerX = 158.0,
     double offsetX = 0.0

@@ -3,6 +3,7 @@
 #include "sensors.h"
 #include "odom.h"
 #include "subsystems.h"
+#include "descore.h"
 #include "vex.h"
 
 using namespace vex;
@@ -18,6 +19,11 @@ void pre_auton() {
 
     VisionSensor.setBrightness(72);
     VisionSensor.setLedMode(vex::vision::ledMode::automatic);
+
+    // Force color sort motor to home immediately at startup
+    homeColorSort();
+
+    initLeverArm();
 
     if (!odomTask)   odomTask   = new task(odomTaskFn);
     if (!sorterTask) sorterTask = new task(intakeTaskFn);

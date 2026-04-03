@@ -941,7 +941,7 @@ static void autoCorrectRedLeft() {
     m.setAutoCorrectEnabled(true);
 
     while (true) {
-        visionAlignOnlyToCenterId(1, 3000, 0.13, 0.0, 5, 6, 8, 158.0, 0.0);
+        visionAlignOnlyToCenterIdTwo(1);
     }
 }
 
@@ -1078,98 +1078,22 @@ static void SkillsRun() {
 
     bool wingsOut = false;
 
-    // going towards the loader
-    m.driveHeading(-0.84, 2200, 65, 0);
-    wait(10, msec);
-
-    m.turnTo(90, 1800);
-    wait(10, msec);
-
-    ballLoader.toggles();
-    wait(700, msec);
-
-    runIntake(100);
-    wait(10, msec);
-
-    m.driveHeadingCC(-0.301, 1800, 55, 90);
-    wait(250, msec);
-
-    loaderPeck(1, 2.0, -3.0, 22, 28, 150);
-
-    stopIntake();
-    wait(10, msec);
-
-    // going toward opposite side
-    driveDistanceByMotors(6, 35, 900);
-
-    reverseIntake(20);
-    wait(150, msec);
-
-    stopIntake();
-    wait(10, msec);
-
-    runIntake(20);
-
-    m.turnTo(45, 1300);
-    wait(10, msec);
-
-    m.driveHeadingCC(0.55, 2500, 50, 45);
-    wait(10, msec);
-
-    m.turnTo(90, 1300);
-    wait(10, msec);
-
-    m.driveHeading(2.0, 2600, 50, 90);
-    wait(10, msec);
-
-    // turning towards goal and depositing
-    reverseIntake(40);
-    wait(150, msec);
-    stopIntake();
-    wait(10, msec);
-
-    wingFlick(wingsOut);
-
-    m.turnTo(180, 1800);
-    wait(10, msec);
-
-    m.drive(0.42, 2200, 45);
-    wait(10, msec);
-
-    m.turnTo(-90, 1700);
-    wait(10, msec);
-
-    scoreTopGoal(m, wingsOut, 6, 700);
-
-    wait(150, msec);
-
-    // going back to loader
-    setWingsState(false, wingsOut);
-
-    runIntake(100);
-    wait(10, msec);
-
-    m.driveHeading(-0.8, 1700, 55, -90);
-    wait(100, msec);
-
-    loaderPeck(4, 2.0, -3.0, 22, 28, 120);
-
-    stopIntake();
-    wait(10, msec);
-
-    // going back to top goal
-    scoreTopGoal(m, wingsOut, 7, 900);
-
-    driveDistanceByMotors(-5, 20, 1500);
-    wait(10, msec);
-
-    driveDistanceByMotors(6, 25, 1500);
+    while (true) {
+        visionAlignOnlyToCenterIdTwo(1);
+    }
+   
 }
 
 static void wip() {
     MotionController m;
     m.setAutoCorrectEnabled(true);
     setSorterEnabled(false);
+
+    bool wingsOut = false;
+
+     while (true) {
+        visionAlignOnlyToCenterId(1);
+    } 
 }
 
 // ============================================================

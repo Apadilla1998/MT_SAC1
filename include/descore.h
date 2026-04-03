@@ -1,20 +1,15 @@
-#pragma once
+#ifndef DESCORE_H
+#define DESCORE_H
 
-// ============================================================
-//  Descore arm (DescoreMotor + DescorePot on G)
-// ============================================================
-
-// Print the descore arm pot angle to controller line 3.
-void printArmAngleControllerUpdate();
-
-// ============================================================
-//  Lever Arm (LeverArm motor + LeverArmPot on H)
-// ============================================================
-
-// Call once at startup to initialize the arm to hold position.
+// Initialize the lever arm zero position
 void initLeverArm();
 
-// Call every loop tick.
-//   deployed = true  → move to deployed angle
-//   deployed = false → return to stored / origin angle
+// Update lever arm target
+// deployed = true  -> move to 120 deg
+// deployed = false -> move back to 0 deg
 void updateLeverArm(bool deployed);
+
+// Print lever angle to controller screen
+void printArmAngleControllerUpdate();
+
+#endif

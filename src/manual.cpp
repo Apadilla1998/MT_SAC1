@@ -11,7 +11,7 @@ using namespace vex;
 
 // Drive tuning
 static constexpr double kFwdCurve  = 0.20;
-static constexpr double kTurnCurve = 0.250;
+static constexpr double kTurnCurve = 0.20;
 
 static constexpr double kLeftBias  = 1.00;
 static constexpr double kRightBias = 1.00;
@@ -19,19 +19,18 @@ static constexpr double kRightBias = 1.00;
 static constexpr double kDriveAccelPctPerS = 2000.0;
 static constexpr double kDriveDecelPctPerS = 1500.0;
 
-// Smooth turn slew so turning does not snap at high speed
-static constexpr double kTurnAccelPctPerS  = 700.0;
-static constexpr double kTurnDecelPctPerS  = 900.0;
+// turn slew: smooth, but not lazy
+static constexpr double kTurnAccelPctPerS  = 1800.0;
+static constexpr double kTurnDecelPctPerS  = 2200.0;
 
 static constexpr double kDt                = 0.025;
 
 static constexpr double kDriveScaleFast    = 1.0;
-static constexpr double kTurnScaleFast     = 0.40;
+static constexpr double kTurnScaleFast     = 0.85;
 static constexpr double kTurnMaxPct        = 100.0;
 
-// Reduce turn slightly as forward speed rises so the arcade mix
-// does not over-normalize and make the robot feel like it slows down to turn
-static constexpr double kTurnReduceAtFullFwd = 0.35;
+// only a tiny reduction at full speed
+static constexpr double kTurnReduceAtFullFwd = 0.10;
 
 static constexpr int kDeadbandPct = 0;
 static constexpr int kDriveUnlockJoyThreshPct = 8;
@@ -47,10 +46,10 @@ static double g_fwdCmd = 0.0;
 static double g_trnCmd = 0.0;
 
 static bool g_prevUp   = false, g_prevX  = false, g_prevY = false;
-static bool g_prevB    = false, g_prevL1 = false;
+static bool g_prevB    = false;
 static bool g_prevDown = false;
 static bool g_prevLeft = false, g_prevRight = false;
-
+    
 static bool g_showOdom = false;
 
 static int  g_screenTimerMs = 0;
@@ -62,9 +61,6 @@ static bool g_forceScreenUpdate = false;
 
 static int  g_r1RumbleTimerMs   = 0;
 static bool g_sorterEnabledUser = false;
-
-enum class IntakeMode { OFF, INTAKE, REVERSE };
-static IntakeMode g_intakeMode = IntakeMode::OFF;
 
 static inline double applyCurvePct(double inputPct, double curve) {
     const double v = inputPct / 100.0;
@@ -262,17 +258,13 @@ static void handleDrive() {
 
     const double fwdMag = std::fabs(g_fwdCmd);
 
-    // Instead of boosting turn harder at full speed, reduce it slightly.
-    // This keeps the drive mix smoother and avoids the feeling that the
-    // robot suddenly loses speed when you try to steer at max throttle.
     const double turnGain = 1.0 - (kTurnReduceAtFullFwd * (fwdMag / 100.0));
     const double trnTarget = clampD(trnReq * turnGain, -turnMax, turnMax);
 
-    // Slew turning too so steering changes are smooth at speed
     g_trnCmd = slewTo(trnTarget, g_trnCmd, kTurnAccelPctPerS, kTurnDecelPctPerS);
 
-    double lRaw = (g_fwdCmd - g_trnCmd) * kLeftBias;
-    double rRaw = (g_fwdCmd + g_trnCmd) * kRightBias;
+    double lRaw = (g_fwdCmd + g_trnCmd) * kLeftBias;
+    double rRaw = (g_fwdCmd - g_trnCmd) * kRightBias;
 
     normalizeArcade(lRaw, rRaw);
 
@@ -282,8 +274,8 @@ static void handleDrive() {
     if (neutralInput) {
         if (std::fabs(g_fwdCmd) < 0.8 && std::fabs(g_trnCmd) < 0.8) {
             if (!g_driveStopped) {
-                LeftMotorGroup.stop();
-                RightMotorGroup.stop();
+                LeftMotorGroup.stop(coast);
+                RightMotorGroup.stop(coast);
                 g_driveStopped = true;
             }
             return;
@@ -344,33 +336,18 @@ static void handleToggles(bool& needsUpdate) {
 static void handleIntake() {
     const bool l1 = Controller1.ButtonL1.pressing();
     const bool r2 = Controller1.ButtonR2.pressing();
+    const bool l2 = Controller1.ButtonL2.pressing();
 
-    if (l1 && !g_prevL1) {
-        g_intakeMode = (g_intakeMode == IntakeMode::INTAKE)
-                     ? IntakeMode::OFF
-                     : IntakeMode::INTAKE;
-    }
-    g_prevL1 = l1;
+    setSorterEnabled(g_sorterEnabledUser && l1 && !r2);
 
-    IntakeMode mode = g_intakeMode;
-    if (r2) mode = IntakeMode::REVERSE;
-
-    const bool sorterShouldRun =
-        g_sorterEnabledUser && (mode == IntakeMode::INTAKE);
-    setSorterEnabled(sorterShouldRun);
-
-    switch (mode) {
-        case IntakeMode::OFF:
-            stopIntake();
-            break;
-
-        case IntakeMode::INTAKE:
-            runIntake(kIntakePct);
-            break;
-
-        case IntakeMode::REVERSE:
-            reverseIntake(kReversePct);
-            break;
+    if (r2) {
+        reverseIntake(kReversePct);
+    } else if (l1) {
+        runIntake(kIntakePct);
+    } else if (l2) {
+        runIntake(kIntakePct);
+    } else {
+        stopIntake();
     }
 }
 
@@ -406,8 +383,6 @@ void usercontrol() {
     g_sorterEnabledUser = false;
     setSorterEnabled(false);
 
-    initLeverArm();
-
     updateControllerScreen();
 
     while (true) {
@@ -426,8 +401,7 @@ void usercontrol() {
         handleIntake();
 
         handleR1ContinuousRumble();
-        //screenTick(needsUpdate);
-        printArmAngleControllerUpdate();
+        screenTick(needsUpdate);
 
         wait(20, msec);
     }

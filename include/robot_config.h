@@ -23,6 +23,7 @@ extern vex::motor_group RightMotorGroup;
 // Intake / Outtake
 extern vex::motor Intake;
 extern vex::motor LeverArm;
+extern vex::motor colorSortMotor;
 
 // Descore
 extern vex::motor DescoreMotor;
@@ -40,9 +41,9 @@ extern vex::digital_out wingsPiston;
 extern vex::digital_out loader;
 extern vex::digital_out OuttakePiston;
 
-extern vex::potV2 ColorSort;
+extern vex::pot ColorSort;
 extern vex::potV2 DescorePot;
-extern vex::potV2 LeverArmPot;
+extern vex::pot LeverArmPot;
 
 // Config constants
 namespace config {
