@@ -26,11 +26,11 @@ motor_group RightMotorGroup(RightA, RightB, RightC, RightD);
 // ---------------- Intake and Outtake ----------------
 motor LeverArm(PORT20, ratio6_1, true);
 motor Intake(PORT2, ratio6_1, true);
-motor colorSortMotor(PORT15, ratio18_1, false);
+motor colorSortMotor(PORT12, ratio18_1, false);
 
 
 //------------------Descore------------------
-motor DescoreMotor(PORT11, ratio6_1, true);
+motor DescoreMotor(PORT11, ratio6_1, false);
 
 // ---------------- Sensors ----------------
 inertial inertial_sensor(PORT14);
@@ -46,22 +46,22 @@ vex::vision::signature GOAL(
   0
 );
 
-vex::vision VisionSensor(vex::PORT12, 30, GOAL);
+vex::vision VisionSensor(vex::PORT19, 30, GOAL);
 
 // ---------------- Others ----------------
 digital_out wingsPiston(Brain.ThreeWirePort.C);
 digital_out loader(Brain.ThreeWirePort.E);
-digital_out OuttakePiston(Brain.ThreeWirePort.D);
+digital_out DescorePiston(Brain.ThreeWirePort.D); 
 
 pot ColorSort(Brain.ThreeWirePort.F);
-potV2 DescorePot(Brain.ThreeWirePort.G);
-pot LeverArmPot(Brain.ThreeWirePort.H);
+pot DescorePot(Brain.ThreeWirePort.G);
+pot LeverArmPot(Brain.ThreeWirePort.H); //
 
 
 // ---------------- Config ----------------
 namespace config {
     const double TRACK_WIDTH_M = 0.320;
-    const double TRACKING_WHEEL_CIRCUMFERENCE_M = 0.050 * M_PI;
+    const double TRACKING_WHEEL_CIRCUMFERENCE_M = 0.05 * M_PI; //was 0.05
     const double ARCADE_DEADBAND = 0.0;
     const double SIDE_OFFSET_M = 0.0;
     const double VERT_OFFSET_M = 0.0;

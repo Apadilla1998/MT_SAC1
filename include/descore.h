@@ -1,15 +1,15 @@
 #ifndef DESCORE_H
 #define DESCORE_H
 
-// Initialize the lever arm zero position
-void initLeverArm();
+// Initialize the descore mechanism
+void initDescore();
 
-// Update lever arm target
-// deployed = true  -> move to 120 deg
-// deployed = false -> move back to 0 deg
-void updateLeverArm(bool deployed);
+// Update descore target
+// deployed = true  -> move to descore position
+// deployed = false -> return to home position
+void updateDescore(bool deployed);
 
-// Print lever angle to controller screen
-void printArmAngleControllerUpdate();
+// Print descore angle to controller screen
+void printDescoreAngleControllerUpdate();
 
 #endif

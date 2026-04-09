@@ -35,8 +35,18 @@ private:
     bool state = false;
 };
 
+class Descore{
+public:
+    void toggle();
+    void set(bool s);
+    bool isExtended() const { return state; }
+private:
+    bool state = false;
+};
+
 extern Wings wings;
 extern BallLoader ballLoader;
+extern Descore descore;
 
 void setSorterEnabled(bool enabled);
 void setSortTargetColor(SortTargetColor color);

@@ -8,11 +8,12 @@ using namespace vex;
 // ============================================================
 // Globals
 // ============================================================
-SortTargetColor g_sortTargetColor = SortTargetColor::BLUE;
-Alliance myAlliance = Alliance::BLUE;
+SortTargetColor g_sortTargetColor = SortTargetColor::RED;
+Alliance myAlliance = Alliance::RED;
 
 Wings wings;
 BallLoader ballLoader;
+Descore descore;
 
 volatile bool g_sorterEnabled = false;
 
@@ -89,6 +90,16 @@ void BallLoader::sets(bool s) {
     loader.set(state);
 }
 
+void Descore::toggle() {
+    state = !state;
+    DescorePiston.set(state);
+}
+
+void Descore::set(bool s) {
+    state = s;
+    DescorePiston.set(state);
+}
+
 // ============================================================
 // Intake
 // ============================================================
@@ -117,21 +128,6 @@ void stopIntake() {
     if (g_sorterOverrideActive) return;
 
     Intake.stop(coast);
-}
-
-// ============================================================
-// Descore arm
-// ============================================================
-void moveArmRight(double speedPct) {
-    DescoreMotor.spin(fwd, speedPct, pct);
-}
-
-void moveArmLeft(double speedPct) {
-    DescoreMotor.spin(reverse, speedPct, pct);
-}
-
-void stopArm() {
-    DescoreMotor.stop(hold);
 }
 
 // ============================================================

@@ -7,12 +7,13 @@
 #include "vex.h"
 #include "manual.h"
 #include "vision_utils.h"
-#include "descore.h"
+#include "Lever.h"
+#include "Descore.h"
 #include <cmath>
 
 using namespace vex;
 
-AutonRoutine selectedAuton = AutonRoutine::WIP;
+AutonRoutine selectedAuton = AutonRoutine::ROUTINEONE;
 
 // ============================================================
 //  Local helpers
@@ -891,12 +892,6 @@ static void autoCorrectBlueRight() {
     MotionController m;
     m.setAutoCorrectEnabled(true);
 
-    moveArmLeft(100);
-    wait(10, msec);
-
-    stopArm();
-    wait(10, msec);
-
     m.drive(0.75, 5500, 100);
     wait(10, msec);
 
@@ -1096,6 +1091,48 @@ static void wip() {
     } 
 }
 
+static void RoutineOne(){
+    MotionController m;
+    m.setAutoCorrectEnabled(true);
+    setSorterEnabled(false);
+    updateDescore(true);
+
+    m.drive(-0.70, 2500, 100); // was 0.83
+    m.turnTo(90, 2000);
+    wait(10, msec);
+
+    ballLoader.toggles();
+    wait(1, sec);
+
+    runIntake(100);
+    wait(10, msec);
+
+    m.driveHeadingCC(-0.25, 2000, 50, 90);
+    wait(900, msec);
+
+    driveDistanceByMotors(1, 17, 7000);
+    wait(10, msec);
+    driveDistanceByMotors(-2, 17, 7000);
+    wait(900, msec);
+
+    stopIntake();
+    wait(10, msec);
+
+    m.drive(0.35, 2900, 50);
+    ballLoader.toggles();
+    runIntake(100);
+    wait(1000, msec);
+
+    stopIntake();
+    wait(10, msec);
+
+    wings.toggle();
+    m.drive(0.25, 1600, 40);
+    wait(10, msec);
+
+    // visionAlignOnlyToCenterId(1);
+}
+
 // ============================================================
 //  Dispatch
 // ============================================================
@@ -1124,6 +1161,7 @@ void runAutonomous() {
         case AutonRoutine::BAKERS:                  Auton_SKILLS();          break;
         case AutonRoutine::AUTON_SKILLS:            SkillsRun();             break;
         case AutonRoutine::WIP:                     wip();                   break;
+        case AutonRoutine::ROUTINEONE:              RoutineOne();            break;
         default:                                    break;
     }
 

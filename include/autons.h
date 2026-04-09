@@ -22,7 +22,8 @@ enum class AutonRoutine {
     SKILLS2,
     AUTON_SKILLS,
     BAKERS,
-    WIP
+    WIP,
+    ROUTINEONE
 };
 
 extern AutonRoutine selectedAuton;

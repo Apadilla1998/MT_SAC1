@@ -39,10 +39,10 @@ extern vex::vision VisionSensor;
 // Pneumatics / 3-wire
 extern vex::digital_out wingsPiston;
 extern vex::digital_out loader;
-extern vex::digital_out OuttakePiston;
+extern vex::digital_out DescorePiston;
 
 extern vex::pot ColorSort;
-extern vex::potV2 DescorePot;
+extern vex::pot DescorePot;
 extern vex::pot LeverArmPot;
 
 // Config constants

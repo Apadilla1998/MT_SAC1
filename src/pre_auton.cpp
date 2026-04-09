@@ -3,7 +3,7 @@
 #include "sensors.h"
 #include "odom.h"
 #include "subsystems.h"
-#include "descore.h"
+#include "Lever.h"
 #include "vex.h"
 
 using namespace vex;

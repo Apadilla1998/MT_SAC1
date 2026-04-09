@@ -10,7 +10,7 @@
 static inline bool visionAlignOnlyToCenterId( //aligns with only one detected object
     uint32_t sigId,
     int timeoutMs = 3000,
-    double kP = 0.13,
+    double kP = 0.10,
     double kD = 0.00,
     int deadbandPx = 5,
     double maxTurnPct = 6,
@@ -87,7 +87,7 @@ static inline bool visionAlignOnlyToCenterId( //aligns with only one detected ob
         turn = clampD(turn, lastTurn - maxStepPct, lastTurn + maxStepPct);
         lastTurn = turn;
 
-        tankDrive(-turn, turn);
+        tankDrive(turn, -turn); //was flipped before
 
         vex::wait(dtMs, vex::msec);
     }
@@ -188,7 +188,7 @@ static inline bool visionAlignOnlyToCenterIdTwo(
         turn = clampD(turn, lastTurn - maxStepPct, lastTurn + maxStepPct);
         lastTurn = turn;
 
-        tankDrive(-turn, turn);
+        tankDrive(turn, -turn); // was filpped before
 
         vex::wait(dtMs, vex::msec);
     }

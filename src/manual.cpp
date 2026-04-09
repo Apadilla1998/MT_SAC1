@@ -4,7 +4,8 @@
 #include "odom.h"
 #include "utils.h"
 #include <cmath>
-#include "descore.h"
+#include "Lever.h"
+#include "Descore.h"
 #include <algorithm>
 
 using namespace vex;
@@ -26,8 +27,8 @@ static constexpr double kTurnDecelPctPerS  = 2200.0;
 static constexpr double kDt                = 0.025;
 
 static constexpr double kDriveScaleFast    = 1.0;
-static constexpr double kTurnScaleFast     = 0.85;
-static constexpr double kTurnMaxPct        = 100.0;
+static constexpr double kTurnScaleFast     = 0.70;
+static constexpr double kTurnMaxPct        = 90.0;
 
 // only a tiny reduction at full speed
 static constexpr double kTurnReduceAtFullFwd = 0.10;
@@ -38,8 +39,8 @@ static constexpr int kDriveUnlockJoyThreshPct = 8;
 static constexpr int kIntakePct  = 100;
 static constexpr int kReversePct = 100;
 
-static constexpr double kDriveScaleR1 = 1.00;
-static constexpr double kTurnScaleR1  = 1.00;
+// static constexpr double kDriveScaleR1 = 1.00;
+// static constexpr double kTurnScaleR1  = 1.00;
 
 // State
 static double g_fwdCmd = 0.0;
@@ -49,7 +50,8 @@ static bool g_prevUp   = false, g_prevX  = false, g_prevY = false;
 static bool g_prevB    = false;
 static bool g_prevDown = false;
 static bool g_prevLeft = false, g_prevRight = false;
-    
+static bool g_prevL1   = false;
+
 static bool g_showOdom = false;
 
 static int  g_screenTimerMs = 0;
@@ -59,8 +61,9 @@ static bool g_driveStopped = true;
 static bool g_driveLocked  = false;
 static bool g_forceScreenUpdate = false;
 
-static int  g_r1RumbleTimerMs   = 0;
+// static int  g_r1RumbleTimerMs   = 0;
 static bool g_sorterEnabledUser = false;
+static bool g_intakeToggleOn    = false;
 
 static inline double applyCurvePct(double inputPct, double curve) {
     const double v = inputPct / 100.0;
@@ -113,6 +116,15 @@ static double filteredHueManual() {
     return tmp[count / 2];
 }
 
+static const char* sortTargetText() {
+    switch (g_sortTargetColor) {
+        case SortTargetColor::RED:  return "RED";
+        case SortTargetColor::BLUE: return "BLUE";
+        case SortTargetColor::OFF:  return "OFF";
+        default:                    return "UNK";
+    }
+}
+
 static void updateBallLine() {
     Controller1.Screen.clearLine(3);
     Controller1.Screen.setCursor(3, 1);
@@ -148,9 +160,10 @@ static void updateControllerScreen() {
             ballLoader.isExtended() ? "UP" : "DN");
 
         Controller1.Screen.setCursor(2, 1);
-        Controller1.Screen.print("W:%s SORT:%s",
+        Controller1.Screen.print("W:%s S:%s C:%s",
             wings.isExtended() ? "UP" : "DN",
-            g_sorterEnabledUser ? "ON" : "OFF");
+            g_sorterEnabledUser ? "ON" : "OFF",
+            sortTargetText());
 
         updateBallLine();
     } else {
@@ -182,20 +195,6 @@ static void screenTick(bool needsUpdate) {
     if (!g_showOdom && g_ballTimerMs >= 2000) {
         updateBallLine();
         g_ballTimerMs = 0;
-    }
-}
-
-static void handleR1ContinuousRumble() {
-    const bool r1 = Controller1.ButtonR1.pressing();
-
-    if (r1) {
-        g_r1RumbleTimerMs += 20;
-        if (g_r1RumbleTimerMs >= 300) {
-            Controller1.rumble("-");
-            g_r1RumbleTimerMs = 0;
-        }
-    } else {
-        g_r1RumbleTimerMs = 0;
     }
 }
 
@@ -238,15 +237,15 @@ static void handleDrive() {
     if (std::fabs(trnIn) < kDeadbandPct) trnIn = 0.0;
 
     const bool neutralInput = (fwdIn == 0.0 && trnIn == 0.0);
-    const bool boostR1 = Controller1.ButtonR1.pressing();
+    // const bool boostR1 = Controller1.ButtonR1.pressing();
 
-    const double driveScale = boostR1 ? kDriveScaleR1 : kDriveScaleFast;
-    const double turnScale  = boostR1 ? kTurnScaleR1  : kTurnScaleFast;
+    const double driveScale = kDriveScaleFast;
+    const double turnScale  = kTurnScaleFast;
 
     double fwdReq = fwdIn * driveScale;
     double trnReq = trnIn * turnScale;
 
-    const double turnMax = boostR1 ? 100.0 : kTurnMaxPct;
+    const double turnMax = kTurnMaxPct;
     trnReq = clampD(trnReq, -turnMax, turnMax);
 
     if (neutralInput) {
@@ -306,7 +305,13 @@ static void handleToggles(bool& needsUpdate) {
 
     const bool y = Controller1.ButtonY.pressing();
     if (y && !g_prevY) {
-        g_showOdom = !g_showOdom;
+        if (g_sortTargetColor == SortTargetColor::BLUE) {
+            setSortTargetColor(SortTargetColor::RED);
+            Controller1.rumble("-");
+        } else {
+            setSortTargetColor(SortTargetColor::BLUE);
+            Controller1.rumble(".");
+        }
         needsUpdate = true;
     }
     g_prevY = y;
@@ -331,20 +336,34 @@ static void handleToggles(bool& needsUpdate) {
         needsUpdate = true;
     }
     g_prevDown = down;
+
+    const bool l1 = Controller1.ButtonL1.pressing();
+    if (l1 && !g_prevL1) {
+        g_intakeToggleOn = !g_intakeToggleOn;
+        Controller1.rumble(g_intakeToggleOn ? "." : "-");
+        needsUpdate = true;
+    }
+    g_prevL1 = l1;
+
+    const bool r1 = Controller1.ButtonR1.pressing();
+    if (r1 && !g_prevRight) {
+        descore.toggle();
+        needsUpdate = true;
+    }
+    g_prevRight = r1;
 }
 
 static void handleIntake() {
-    const bool l1 = Controller1.ButtonL1.pressing();
     const bool r2 = Controller1.ButtonR2.pressing();
     const bool l2 = Controller1.ButtonL2.pressing();
 
-    setSorterEnabled(g_sorterEnabledUser && l1 && !r2);
+    const bool intakeForward = g_intakeToggleOn || l2;
+
+    setSorterEnabled(g_sorterEnabledUser && intakeForward && !r2);
 
     if (r2) {
         reverseIntake(kReversePct);
-    } else if (l1) {
-        runIntake(kIntakePct);
-    } else if (l2) {
+    } else if (intakeForward) {
         runIntake(kIntakePct);
     } else {
         stopIntake();
@@ -356,24 +375,6 @@ static void handleLeverArm() {
     updateLeverArm(l2);
 }
 
-static void handleDescore() {
-    const bool boost = Controller1.ButtonR1.pressing();
-    const int  armPct = boost ? 100 : 25;
-
-    const bool left  = Controller1.ButtonLeft.pressing();
-    const bool right = Controller1.ButtonRight.pressing();
-
-    if (left  && !g_prevLeft)  Controller1.rumble(".");
-    if (right && !g_prevRight) Controller1.rumble(".");
-
-    g_prevLeft  = left;
-    g_prevRight = right;
-
-    if (left)        moveArmLeft(armPct);
-    else if (right)  moveArmRight(armPct);
-    else             stopArm();
-}
-
 void usercontrol() {
     ballSensor.setLightPower(100, percent);
 
@@ -381,6 +382,8 @@ void usercontrol() {
     RightMotorGroup.setStopping(coast);
 
     g_sorterEnabledUser = false;
+    g_intakeToggleOn    = false;
+    g_prevL1            = false;
     setSorterEnabled(false);
 
     updateControllerScreen();
@@ -395,12 +398,11 @@ void usercontrol() {
             g_forceScreenUpdate = false;
         }
 
-        handleDescore();
+        updateDescore(true);
         handleLeverArm();
         handleToggles(needsUpdate);
         handleIntake();
 
-        handleR1ContinuousRumble();
         screenTick(needsUpdate);
 
         wait(20, msec);
